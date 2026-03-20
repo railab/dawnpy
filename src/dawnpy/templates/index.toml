@@ -1,0 +1,15 @@
+# Bundled dawnpy templates, grouped by kind.
+#
+# Kinds:
+#   project  Full out-of-tree Dawn project scaffolds, rendered as a
+#            directory tree by `dawnpy project new`.
+#   device   YAML descriptor templates for individual devices.
+#            Reserved for future use.
+#
+# Layout: each entry name maps to a directory at
+#   templates/<kind>/<name>/
+
+[project]
+minimal-sim = "Minimal simulator-based out-of-tree Dawn project"
+
+[device]
