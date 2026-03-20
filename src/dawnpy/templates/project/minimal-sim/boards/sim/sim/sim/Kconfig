@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config DAWN_OOT_PROJECT_OVERLAY
+	bool
+	default y
+	select ARCH_HAVE_RESET
+	select BOARDCTL_UNIQUEID
+
+source "$(DAWN_BOARDS_COMMON)/Kconfig"
