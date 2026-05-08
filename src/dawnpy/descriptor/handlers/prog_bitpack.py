@@ -5,7 +5,7 @@ from typing import Any
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.words import cfg_id
 from dawnpy.descriptor.support.utils import resolve_reference
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "bitpack"
 cpp_class: str = "CProgBitPack"
@@ -107,7 +107,7 @@ def encode_binary(
                 input_words.append(bit_val)
 
     if input_words:
-        cfg_inp = load_header_cfg_id(cpp_class, "cfgIdInputs")
+        cfg_inp = header_cfg_id(cpp_class, "cfgIdInputs")
         items.append(
             (
                 cfg_id(3, prog_cls, 0, False, len(input_words), cfg_inp),
@@ -119,5 +119,5 @@ def encode_binary(
     out_ref = resolve_reference(output) if output else None
     out_id = obj_ids.get(out_ref, 0) if out_ref else 0
     if out_id:
-        cfg_out = load_header_cfg_id(cpp_class, "cfgIdOutput")
+        cfg_out = header_cfg_id(cpp_class, "cfgIdOutput")
         items.append((cfg_id(3, prog_cls, 0, False, 1, cfg_out), [out_id]))

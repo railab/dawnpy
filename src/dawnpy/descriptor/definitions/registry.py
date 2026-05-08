@@ -19,6 +19,8 @@ from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Any, Iterator, TypeVar
 
+import dawnpy.headerdefs.bundle as header_bundle
+
 # Re-export the public TypeInfo dataclasses so consumers and OOT users
 # can keep importing them from dawnpy.descriptor.definitions.registry.
 from dawnpy.descriptor.definitions.type_info import (  # noqa: F401
@@ -34,52 +36,10 @@ from dawnpy.descriptor.definitions.type_info import (
 from dawnpy.descriptor.definitions.type_info import (
     TypeRegistration as TypeRegistration,
 )
-from dawnpy.headerdefs import (
-    HeaderDefsError,
-    load_header_defs,
-)
+from dawnpy.headerdefs.bundle import HeaderBundle
 from dawnpy.logger import logger
 
 _T = TypeVar("_T")
-
-
-# Load data type mappings from headers
-def _load_dtype_map() -> dict[str, str]:
-    """Load data type mapping from Dawn headers."""
-    defs = load_header_defs()
-    dtype_entries = defs.get("dtype", [])
-    if not isinstance(dtype_entries, list):
-        raise HeaderDefsError("Header dtype definitions are invalid")
-
-    dtype_map: dict[str, str] = {}
-    for dtype in dtype_entries:
-        if not isinstance(dtype, dict):
-            continue
-        yaml_type = str(dtype.get("type", "")).lower()
-        name = str(dtype.get("name", ""))
-        if yaml_type and name:
-            dtype_map[yaml_type] = f"SObjectId::{name}"
-    if not dtype_map:
-        raise HeaderDefsError("No dtype definitions loaded from headers")
-    return dtype_map
-
-
-def _load_dtype_initval_param_map() -> dict[str, int]:
-    """Load cfgIdInitval dtype parameter mapping from Dawn headers."""
-    defs = load_header_defs()
-    dtype_entries = defs.get("dtype", [])
-    if not isinstance(dtype_entries, list):
-        raise HeaderDefsError("Header dtype definitions are invalid")
-
-    dtype_map: dict[str, int] = {}
-    for dtype in dtype_entries:
-        if not isinstance(dtype, dict):
-            continue
-        yaml_type = str(dtype.get("type", "")).lower()
-        initval_param = dtype.get("initval_param")
-        if yaml_type and isinstance(initval_param, int):
-            dtype_map[yaml_type] = initval_param
-    return dtype_map
 
 
 # --- Out-of-tree extension API ---------------------------------------------
@@ -199,11 +159,22 @@ _PROTO_TYPES_DATA: dict[str, ProtoTypeInfo] = {}
 _REGISTRY_LOADED = False
 
 
-def _bootstrap_builtin_types() -> None:
+def reset_type_registry() -> None:
+    """Clear cached descriptor type maps so they reload on next access."""
+    global _REGISTRY_LOADED
+    _REGISTRY_LOADED = False
+    _DTYPE_MAP_DATA.clear()
+    _DTYPE_INITVAL_PARAM_MAP_DATA.clear()
+    _IO_TYPES_DATA.clear()
+    _PROG_TYPES_DATA.clear()
+    _PROTO_TYPES_DATA.clear()
+
+
+def _bootstrap_builtin_types(defs: HeaderBundle) -> None:
     """Apply built-in TypeRegistration objects into the module dicts."""
     from dawnpy.descriptor.definitions import load_builtin_registrations
 
-    for reg in load_builtin_registrations():
+    for reg in load_builtin_registrations(defs):
         _apply_registration(
             reg,
             _IO_TYPES_DATA,
@@ -218,14 +189,15 @@ def _ensure_registry_loaded() -> None:
     if _REGISTRY_LOADED:
         return
 
+    defs = header_bundle.load_header_bundle()
     _DTYPE_MAP_DATA.clear()
-    _DTYPE_MAP_DATA.update(_load_dtype_map())
+    _DTYPE_MAP_DATA.update(defs.dtype_map())
     _DTYPE_INITVAL_PARAM_MAP_DATA.clear()
-    _DTYPE_INITVAL_PARAM_MAP_DATA.update(_load_dtype_initval_param_map())
+    _DTYPE_INITVAL_PARAM_MAP_DATA.update(defs.dtype_initval_param_map())
     _IO_TYPES_DATA.clear()
     _PROG_TYPES_DATA.clear()
     _PROTO_TYPES_DATA.clear()
-    _bootstrap_builtin_types()
+    _bootstrap_builtin_types(defs)
 
     # Apply user TypeRegistration plugins from installed Python packages.
     for reg in _iter_registrations():  # pragma: no cover

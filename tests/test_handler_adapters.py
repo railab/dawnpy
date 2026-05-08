@@ -7,12 +7,16 @@
 
 from types import ModuleType, SimpleNamespace
 
+import pytest
+
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.handlers._base import (
     IOHandlerAdapter,
     ProgHandlerAdapter,
     ProtoHandlerAdapter,
 )
+
+pytestmark = pytest.mark.usefixtures("source_free_headers")
 
 
 def _module(name: str, **values: object) -> ModuleType:

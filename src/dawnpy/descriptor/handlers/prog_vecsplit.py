@@ -8,7 +8,7 @@ from dawnpy.descriptor.support.utils import (
     resolve_reference,
     resolve_references,
 )
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "vecsplit"
 cpp_class: str = "CProgVecSplit"
@@ -71,7 +71,7 @@ def encode_binary(
     source_ref = resolve_reference(config.get("source"))
     source_id = obj_ids.get(source_ref, 0) if source_ref else 0
     if source_id:
-        cfg_source = load_header_cfg_id(cpp_class, "cfgIdSource")
+        cfg_source = header_cfg_id(cpp_class, "cfgIdSource")
         items.append(
             (cfg_id(3, prog_cls, 0, False, 1, cfg_source), [source_id])
         )
@@ -82,7 +82,7 @@ def encode_binary(
         if output_ref in obj_ids
     ]
     if output_ids:
-        cfg_outputs = load_header_cfg_id(cpp_class, "cfgIdOutputs")
+        cfg_outputs = header_cfg_id(cpp_class, "cfgIdOutputs")
         items.append(
             (
                 cfg_id(3, prog_cls, 0, False, len(output_ids), cfg_outputs),

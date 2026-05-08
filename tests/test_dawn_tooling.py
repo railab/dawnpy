@@ -44,6 +44,8 @@ from dawnpy.dawn.workflows import (
     run_kconfig_request,
 )
 
+pytestmark = pytest.mark.usefixtures("source_free_headers")
+
 
 def _completed(
     stdout: str = "", stderr: str = ""

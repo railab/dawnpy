@@ -13,7 +13,8 @@ import click
 
 from dawnpy.descriptor.definitions.registry import PROG_TYPES
 from dawnpy.descriptor.handlers import PROG_HANDLER_REGISTRY
-from dawnpy.headerdefs import HeaderDefsError, load_header_object_class_name
+from dawnpy.headerdefs import HeaderDefsError
+from dawnpy.headerdefs.bundle import header_object_class_name
 
 if TYPE_CHECKING:
     from dawnpy.descriptor.definitions.objects import ProgramObject
@@ -29,14 +30,14 @@ def _prog_class_name(obj: ProgramObject) -> str | None:
             value = object_class_name(obj)
             return str(value) if value is not None else None
         try:
-            return load_header_object_class_name(handler.cpp_class, "objectId")
+            return header_object_class_name(handler.cpp_class, "objectId")
         except HeaderDefsError:  # pragma: no cover
             return None
     info = PROG_TYPES.get(obj.prog_type)
     if info is None:
         return None
     try:
-        return load_header_object_class_name(info.cpp_class, "objectId")
+        return header_object_class_name(info.cpp_class, "objectId")
     except HeaderDefsError:  # pragma: no cover
         return None
 

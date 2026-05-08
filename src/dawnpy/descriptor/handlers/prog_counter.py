@@ -8,7 +8,7 @@ from dawnpy.descriptor.handlers._prog_common import (
     append_standard_iobind,
     iobind_field,
 )
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "counter"
 cpp_class: str = "CProgCounter"
@@ -43,5 +43,5 @@ def encode_binary(
         words = [int(param) for param in params]
         while len(words) < 4:
             words.append(0)
-        cfg_p = load_header_cfg_id(cpp_class, "cfgIdParams")
+        cfg_p = header_cfg_id(cpp_class, "cfgIdParams")
         items.append((cfg_id(3, prog_cls, 0, False, 4, cfg_p), words[:4]))

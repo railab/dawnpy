@@ -5,6 +5,8 @@
 
 """Tests for object summary utilities."""
 
+import pytest
+
 from dawnpy.descriptor.client import (
     ClientDescriptor,
     ClientIo,
@@ -17,6 +19,8 @@ from dawnpy.descriptor.definitions.summary import (
     build_program_table,
     build_protocol_table,
 )
+
+pytestmark = pytest.mark.usefixtures("source_free_headers")
 
 
 def _io_class_id(resolver: ObjectIdResolver, name: str) -> int:

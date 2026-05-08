@@ -21,6 +21,8 @@ from dawnpy.descriptor.definitions.registry import (
     get_proto_helper_call,
 )
 
+pytestmark = pytest.mark.usefixtures("source_free_headers")
+
 
 class TestTypeLoading:
     """Test YAML configuration loading."""

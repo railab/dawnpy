@@ -15,6 +15,7 @@ fully-resolved data.
 from dataclasses import dataclass, field
 from typing import Any
 
+import dawnpy.headerdefs.bundle as header_bundle
 from dawnpy.descriptor.definitions.type_info import (
     ConfigField,
     ProtoTypeInfo,
@@ -22,11 +23,8 @@ from dawnpy.descriptor.definitions.type_info import (
     _hydrate_enum_values,
 )
 from dawnpy.descriptor.handlers import PROTO_HANDLER_REGISTRY
-from dawnpy.headerdefs import (
-    HeaderDefsError,
-    load_header_enum_map,
-    load_header_type_defs,
-)
+from dawnpy.headerdefs import HeaderDefsError
+from dawnpy.headerdefs.bundle import HeaderBundle
 
 # Standard field for protocols that use the simple bindings shape.
 _PROTO_STANDARD_FIELDS: list[ConfigField] = [
@@ -57,7 +55,9 @@ def get_standard_fields() -> list[ConfigField]:
     return list(_PROTO_STANDARD_FIELDS)
 
 
-def _index_proto_entries() -> dict[str, _ProtoEntry]:
+def _index_proto_entries(
+    defs: HeaderBundle,
+) -> dict[str, _ProtoEntry]:
     """Return ``proto_type -> _ProtoEntry`` indexed.
 
     Per-type handlers own their own ``config_fields()`` and
@@ -66,7 +66,7 @@ def _index_proto_entries() -> dict[str, _ProtoEntry]:
     by_type: dict[str, _ProtoEntry] = {}
     for proto_type, entry in _PROTO_ENTRIES.items():
         hydrated = [  # pragma: no cover
-            _hydrate_enum_values(f, load_header_enum_map) for f in entry.fields
+            _hydrate_enum_values(f, defs.enum_map) for f in entry.fields
         ]
         by_type[proto_type] = _ProtoEntry(  # pragma: no cover
             fields=hydrated,
@@ -74,7 +74,7 @@ def _index_proto_entries() -> dict[str, _ProtoEntry]:
         )
     for yaml_type, handler in PROTO_HANDLER_REGISTRY.items():
         hydrated = [
-            _hydrate_enum_values(f, load_header_enum_map)
+            _hydrate_enum_values(f, defs.enum_map)
             for f in handler.config_fields()
         ]
         by_type[yaml_type] = _ProtoEntry(
@@ -86,14 +86,16 @@ def _index_proto_entries() -> dict[str, _ProtoEntry]:
     return by_type
 
 
-def build_registration() -> TypeRegistration:
+def build_registration(
+    defs: HeaderBundle | None = None,
+) -> TypeRegistration:
     """Build the built-in PROTO :class:`TypeRegistration`."""
-    defs = load_header_type_defs()
-    items: Any = defs.get("proto_types", [])
+    source = defs if defs is not None else header_bundle.load_header_bundle()
+    items: Any = source.type_defs.get("proto_types", [])
     if not isinstance(items, list):
         raise HeaderDefsError("Header Protocol type definitions are invalid")
 
-    entries_by_type = _index_proto_entries()
+    entries_by_type = _index_proto_entries(source)
     proto_types: dict[str, ProtoTypeInfo] = {}
     for item in items:
         if not isinstance(item, dict):

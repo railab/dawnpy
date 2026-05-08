@@ -24,7 +24,7 @@ from dawnpy.descriptor.encoding.io_serialization import (
     resolve_dtype,
 )
 from dawnpy.descriptor.encoding.words import cfg_id
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 if TYPE_CHECKING:
     from dawnpy.descriptor.definitions.objects import IoObject, ProgramObject
@@ -147,7 +147,7 @@ def _binary_cfg_id(
         ref_dtype,
         rw,
         size,
-        load_header_cfg_id(
+        header_cfg_id(
             _header_owner(field.cpp_helper), _header_helper(field.cpp_helper)
         ),
     )
@@ -191,7 +191,7 @@ def encode_binary(ctx: _IOSerializeContext) -> None:
                 int(ref_cfg_dtype),
                 False,
                 1,
-                load_header_cfg_id(cpp_class, "cfgIdAlloc"),
+                header_cfg_id(cpp_class, "cfgIdAlloc"),
             ),
             [ref_cfgid],
         )
@@ -206,7 +206,7 @@ def encode_binary(ctx: _IOSerializeContext) -> None:
                 # descriptor plumbing, not the target field access grant.
                 False,
                 1,
-                load_header_cfg_id(cpp_class, "cfgIdCfg"),
+                header_cfg_id(cpp_class, "cfgIdCfg"),
             ),
             [ref_objid],
         )

@@ -22,6 +22,8 @@ from dawnpy.descriptor.validation.validator import (
     ValidationResult,
 )
 
+pytestmark = pytest.mark.usefixtures("source_free_headers")
+
 
 @pytest.fixture
 def validator():
@@ -1163,8 +1165,7 @@ class TestMissingConfigFile:
     def test_header_component_defs_load_failure_raises(self, monkeypatch):
         """Header mapping load failures should raise runtime config errors."""
         target = (
-            "dawnpy.descriptor.validation.validator."
-            "load_header_component_defs"
+            "dawnpy.descriptor.validation.validator." "header_component_defs"
         )
         monkeypatch.setattr(
             target,

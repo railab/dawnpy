@@ -23,7 +23,8 @@ from dawnpy.descriptor.handlers import (
     PROTO_HANDLER_REGISTRY,
 )
 from dawnpy.descriptor.support.vars import load_yaml_with_vars
-from dawnpy.headerdefs import HeaderDefsError, load_header_component_defs
+from dawnpy.headerdefs import HeaderDefsError
+from dawnpy.headerdefs.bundle import header_component_defs
 
 
 class ValidationError(BaseModel):
@@ -87,7 +88,7 @@ class DescriptorValidator:
     def _load_config(self) -> None:
         """Load descriptor component mapping from parsed C++ headers."""
         try:
-            data = load_header_component_defs()
+            data = header_component_defs()
             self.component_config = {
                 "ios": data.get("ios", []),
                 "programs": data.get("programs", []),

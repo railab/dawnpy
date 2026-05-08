@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-import sys
+from collections.abc import Callable
 
 import pytest
 
@@ -18,18 +18,9 @@ class _DummyParams(list[str]):
         return super().__contains__(item)
 
 
-def minimal_header_defs() -> dict[str, object]:
-    """Small ObjectId definition set used by tests that need a decoder."""
+def minimal_dtype_header_defs() -> dict[str, object]:
+    """Dtype constants needed by descriptor registry/generator tests."""
     return {
-        "bit_fields": {
-            "priv": {"shift": 0, "width": 14, "max": 0x3FFF},
-            "flags": {"shift": 14, "width": 2, "max": 0x3},
-            "dtype": {"shift": 16, "width": 4, "max": 0xF},
-            "ext": {"shift": 20, "width": 1, "max": 0x1},
-            "cls": {"shift": 21, "width": 9, "max": 0x1FF},
-            "type": {"shift": 30, "width": 2, "max": 0x3},
-        },
-        "object_types": {0: "ANY", 1: "IO", 2: "PROTO", 3: "PROG"},
         "dtype": [
             {
                 "value": 0,
@@ -135,6 +126,22 @@ def minimal_header_defs() -> dict[str, object]:
                 "size": 0,
             },
         ],
+    }
+
+
+def minimal_header_defs() -> dict[str, object]:
+    """Small ObjectId definition set used by tests that need a decoder."""
+    return {
+        "bit_fields": {
+            "priv": {"shift": 0, "width": 14, "max": 0x3FFF},
+            "flags": {"shift": 14, "width": 2, "max": 0x3},
+            "dtype": {"shift": 16, "width": 4, "max": 0xF},
+            "ext": {"shift": 20, "width": 1, "max": 0x1},
+            "cls": {"shift": 21, "width": 9, "max": 0x1FF},
+            "type": {"shift": 30, "width": 2, "max": 0x3},
+        },
+        "object_types": {0: "ANY", 1: "IO", 2: "PROTO", 3: "PROG"},
+        **minimal_dtype_header_defs(),
         "io_classes": {
             1: "dummy",
             2: "descriptor",
@@ -362,6 +369,52 @@ def minimal_type_defs() -> dict[str, list[dict[str, object]]]:
             for key, handler in PROTO_HANDLER_REGISTRY.items()
         ],
     }
+
+
+def minimal_header_groups():
+    from dawnpy.headerdefs.bundle import HeaderDefinitionGroups
+
+    return HeaderDefinitionGroups(
+        header_defs=minimal_header_defs(),
+        type_defs=minimal_type_defs(),
+        metadata_defs=minimal_metadata_defs(),
+        component_defs=minimal_component_defs(),
+    )
+
+
+def minimal_header_lookups(
+    *,
+    enum_map_loader: Callable[[str, str], dict[str, str]] | None = None,
+    cfg_id_loader: Callable[[str, str], int] | None = None,
+    enum_value_ids_loader: Callable[[str, str], dict[str, int]] | None = None,
+    object_class_name_loader: Callable[[str, str], str] | None = None,
+):
+    from dawnpy.headerdefs.bundle import HeaderLookupFunctions
+
+    return HeaderLookupFunctions(
+        enum_map_loader=enum_map_loader or minimal_enum_map,
+        cfg_id_loader=cfg_id_loader or minimal_cfg_id,
+        enum_value_ids_loader=enum_value_ids_loader or minimal_enum_value_ids,
+        object_class_name_loader=object_class_name_loader
+        or minimal_object_class_name,
+    )
+
+
+def minimal_header_bundle(
+    *,
+    groups=None,
+    lookups=None,
+):
+    from dawnpy.headerdefs.bundle import HeaderBundle
+
+    return HeaderBundle(
+        groups if groups is not None else minimal_header_groups(),
+        lookups if lookups is not None else minimal_header_lookups(),
+    )
+
+
+def minimal_header_definition_set():
+    return minimal_header_bundle()
 
 
 def minimal_metadata_defs() -> list[dict[str, str]]:
@@ -641,8 +694,9 @@ def blocked_repo_root_lookup() -> None:
 
 @pytest.fixture(autouse=True)
 def block_dawn_source_reads(monkeypatch, request):
-    """Default non-headerdefs tests to small source-free header stubs."""
+    """Prevent tests from accidentally reading the real Dawn checkout."""
     if request.node.path.name == "test_headerdefs.py":
+        yield
         return
 
     import dawnpy.headerdefs._paths as headerdefs_paths
@@ -651,138 +705,29 @@ def block_dawn_source_reads(monkeypatch, request):
         headerdefs_paths, "_repo_root_from_here", blocked_repo_root_lookup
     )
 
-    import dawnpy.descriptor.definitions.io_family as io_family
-    import dawnpy.descriptor.definitions.loader as config_loader
-    import dawnpy.descriptor.definitions.prog_family as prog_family
-    import dawnpy.descriptor.definitions.proto_family as proto_family
     import dawnpy.descriptor.definitions.registry as registry
-    import dawnpy.descriptor.encoding.binary_serializer as binary_serializer
-    import dawnpy.descriptor.encoding.io_serialization as io_serialization
-    import dawnpy.descriptor.encoding.prog_serializer as prog_serializer
-    import dawnpy.descriptor.encoding.proto_serializer as proto_serializer
-    import dawnpy.descriptor.handlers.io_config as io_config
-    import dawnpy.descriptor.handlers.io_pwm as io_pwm
-    import dawnpy.descriptor.validation.headers_check as headers_check
-    import dawnpy.descriptor.validation.validator as validator
-    import dawnpy.headerdefs as headerdefs
-    import dawnpy.headerdefs._enums as headerdefs_enums
-    import dawnpy.objectid as objectid
 
-    registry._REGISTRY_LOADED = False
-    registry._DTYPE_MAP_DATA.clear()
-    registry._DTYPE_INITVAL_PARAM_MAP_DATA.clear()
-    registry._IO_TYPES_DATA.clear()
-    registry._PROG_TYPES_DATA.clear()
-    registry._PROTO_TYPES_DATA.clear()
+    registry.reset_type_registry()
+    yield
+    registry.reset_type_registry()
 
-    monkeypatch.setattr(headerdefs, "load_header_defs", minimal_header_defs)
-    monkeypatch.setattr(headerdefs, "load_header_type_defs", minimal_type_defs)
+
+@pytest.fixture
+def source_free_headers(monkeypatch):
+    """Install source-free descriptor headers for tests that need them."""
+    import dawnpy.headerdefs.bundle as header_bundle
+    from dawnpy.descriptor.handlers import proto_nimble
+
     monkeypatch.setattr(
-        headerdefs, "load_header_component_defs", minimal_component_defs
+        header_bundle,
+        "load_header_bundle",
+        minimal_header_definition_set,
     )
+    proto_nimble._nimble_service_defs.cache_clear()
     monkeypatch.setattr(
-        headerdefs, "load_header_metadata_defs", minimal_metadata_defs
-    )
-    monkeypatch.setattr(
-        headerdefs,
+        proto_nimble,
         "load_header_nimble_service_defs",
         minimal_nimble_service_defs,
     )
-    monkeypatch.setattr(headerdefs, "load_header_cfg_id", minimal_cfg_id)
-    monkeypatch.setattr(headerdefs, "load_header_enum_map", minimal_enum_map)
-    monkeypatch.setattr(
-        headerdefs, "load_header_enum_value_ids", minimal_enum_value_ids
-    )
-    monkeypatch.setattr(
-        headerdefs, "load_header_object_class_name", minimal_object_class_name
-    )
-    monkeypatch.setattr(
-        headerdefs_enums, "load_header_type_defs", minimal_type_defs
-    )
-    monkeypatch.setattr(
-        headerdefs_enums, "load_header_enum_map", minimal_enum_map
-    )
-    monkeypatch.setattr(
-        headerdefs_enums,
-        "load_header_enum_value_ids",
-        minimal_enum_value_ids,
-    )
-    monkeypatch.setattr(
-        headerdefs_enums,
-        "load_header_object_class_name",
-        minimal_object_class_name,
-    )
-
-    monkeypatch.setattr(objectid, "load_header_defs", minimal_header_defs)
-    monkeypatch.setattr(registry, "load_header_defs", minimal_header_defs)
-    monkeypatch.setattr(io_family, "load_header_type_defs", minimal_type_defs)
-    monkeypatch.setattr(io_family, "load_header_enum_map", minimal_enum_map)
-    monkeypatch.setattr(
-        prog_family, "load_header_type_defs", minimal_type_defs
-    )
-    monkeypatch.setattr(
-        proto_family, "load_header_type_defs", minimal_type_defs
-    )
-    monkeypatch.setattr(proto_family, "load_header_enum_map", minimal_enum_map)
-    monkeypatch.setattr(
-        config_loader, "load_header_metadata_defs", minimal_metadata_defs
-    )
-    monkeypatch.setattr(
-        config_loader,
-        "load_header_nimble_service_defs",
-        minimal_nimble_service_defs,
-    )
-    monkeypatch.setattr(
-        binary_serializer, "load_header_cfg_id", minimal_cfg_id
-    )
-    monkeypatch.setattr(proto_serializer, "load_header_cfg_id", minimal_cfg_id)
-    monkeypatch.setattr(
-        proto_serializer,
-        "load_header_enum_value_ids",
-        minimal_enum_value_ids,
-    )
-    monkeypatch.setattr(
-        proto_serializer,
-        "load_header_object_class_name",
-        minimal_object_class_name,
-    )
-    monkeypatch.setattr(
-        prog_serializer,
-        "load_header_object_class_name",
-        minimal_object_class_name,
-    )
-    monkeypatch.setattr(
-        io_serialization,
-        "load_header_enum_value_ids",
-        minimal_enum_value_ids,
-    )
-    monkeypatch.setattr(io_config, "load_header_cfg_id", minimal_cfg_id)
-    monkeypatch.setattr(io_pwm, "load_header_cfg_id", minimal_cfg_id)
-    for module_name, module in tuple(sys.modules.items()):
-        if not module_name.startswith("dawnpy.descriptor.handlers."):
-            continue
-        if hasattr(module, "load_header_cfg_id"):
-            monkeypatch.setattr(module, "load_header_cfg_id", minimal_cfg_id)
-        if hasattr(module, "load_header_enum_value_ids"):  # pragma: no cover
-            monkeypatch.setattr(
-                module, "load_header_enum_value_ids", minimal_enum_value_ids
-            )
-        if hasattr(
-            module, "load_header_object_class_name"
-        ):  # pragma: no cover
-            monkeypatch.setattr(
-                module,
-                "load_header_object_class_name",
-                minimal_object_class_name,
-            )
-    monkeypatch.setattr(headers_check, "load_header_defs", minimal_header_defs)
-    monkeypatch.setattr(
-        headers_check, "load_header_type_defs", minimal_type_defs
-    )
-    monkeypatch.setattr(headers_check, "load_header_cfg_id", minimal_cfg_id)
-    monkeypatch.setattr(
-        headers_check, "load_header_enum_value_ids", minimal_enum_value_ids
-    )
-    monkeypatch.setattr(
-        validator, "load_header_component_defs", minimal_component_defs
-    )
+    yield minimal_header_definition_set()
+    proto_nimble._nimble_service_defs.cache_clear()

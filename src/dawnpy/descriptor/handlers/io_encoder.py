@@ -8,7 +8,7 @@
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.io_serialization import _IOSerializeContext
 from dawnpy.descriptor.encoding.words import cfg_id
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "encoder"
 cpp_class: str = "CIOEncoder"
@@ -42,7 +42,7 @@ def encode_binary(ctx: _IOSerializeContext) -> None:
                 int(ctx.io_dtype_map["uint32"]),
                 False,
                 1,
-                load_header_cfg_id(cpp_class, "cfgIdPosmax"),
+                header_cfg_id(cpp_class, "cfgIdPosmax"),
             ),
             [int(ctx.config["posmax"])],
         )

@@ -5,7 +5,7 @@ from typing import Any
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.words import cfg_id
 from dawnpy.descriptor.support.utils import resolve_reference
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "switch"
 cpp_class: str = "CProgSwitch"
@@ -58,7 +58,7 @@ def encode_binary(
                 input_words.append(io_id)
                 input_words.append(match_val)
     if input_words:
-        cfg_inp = load_header_cfg_id(cpp_class, "cfgIdInputs")
+        cfg_inp = header_cfg_id(cpp_class, "cfgIdInputs")
         items.append(
             (
                 cfg_id(3, prog_cls, 0, False, len(input_words), cfg_inp),
@@ -72,7 +72,7 @@ def encode_binary(
         tgt_id = obj_ids.get(tgt_ref, 0) if tgt_ref else 0
         on_cmd = int(target[1]) if len(target) > 1 else 1
         off_cmd = int(target[2]) if len(target) > 2 else 0
-        cfg_tgt = load_header_cfg_id(cpp_class, "cfgIdTarget")
+        cfg_tgt = header_cfg_id(cpp_class, "cfgIdTarget")
         items.append(
             (
                 cfg_id(3, prog_cls, 0, False, 3, cfg_tgt),

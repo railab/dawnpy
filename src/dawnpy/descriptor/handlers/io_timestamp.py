@@ -9,7 +9,7 @@ from dawnpy.descriptor.config_access import config_field_is_rw
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.io_serialization import _IOSerializeContext
 from dawnpy.descriptor.encoding.words import cfg_id
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "timestamp"
 cpp_class: str = "CIOTimestamp"
@@ -46,7 +46,7 @@ def encode_binary(ctx: _IOSerializeContext) -> None:
                     ctx.config_rw_grants, ctx.obj.obj_id, "interval_us"
                 ),
                 1,
-                load_header_cfg_id(cpp_class, "cfgInterval"),
+                header_cfg_id(cpp_class, "cfgInterval"),
             ),
             [int(ctx.config["interval_us"])],
         )

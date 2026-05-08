@@ -9,7 +9,7 @@ from typing import Any
 
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.words import append_cfg_item, cfg_id
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 
 def iobind_field(cpp_class: str) -> ConfigField:
@@ -56,7 +56,7 @@ def append_standard_iobind(
     if not words:
         return
 
-    cfg = load_header_cfg_id(cpp_class, "cfgIdIOBind")
+    cfg = header_cfg_id(cpp_class, "cfgIdIOBind")
     append_cfg_item(
         items,
         cfg_id(3, prog_cls, 0, False, len(words), cfg),
@@ -76,5 +76,5 @@ def append_uint32_config(
     for name, helper, rw in fields:
         if name not in config:
             continue
-        cfg = load_header_cfg_id(cpp_class, helper)
+        cfg = header_cfg_id(cpp_class, helper)
         items.append((cfg_id(3, prog_cls, 0, rw, 1, cfg), [int(config[name])]))

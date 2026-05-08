@@ -8,7 +8,7 @@ from dawnpy.descriptor.handlers._prog_common import (
     append_standard_iobind,
     iobind_field,
 )
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "toggle"
 cpp_class: str = "CProgToggle"
@@ -40,7 +40,7 @@ def encode_binary(
     config = obj.config if isinstance(obj.config, dict) else {}
     values = config.get("values", [])
     if values:
-        cfg_v = load_header_cfg_id(cpp_class, "cfgIdValues")
+        cfg_v = header_cfg_id(cpp_class, "cfgIdValues")
         items.append(
             (
                 cfg_id(3, prog_cls, 0, False, 2, cfg_v),

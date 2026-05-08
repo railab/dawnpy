@@ -8,7 +8,7 @@
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.io_serialization import _IOSerializeContext
 from dawnpy.descriptor.handlers._io_dummy_common import encode_dummy_block
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "dummy"
 cpp_class: str = "CIODummy"
@@ -38,6 +38,6 @@ def encode_binary(ctx: _IOSerializeContext) -> None:
     """Emit dim + init_value cfg items."""
     encode_dummy_block(
         ctx,
-        dim_cfg=load_header_cfg_id(cpp_class, "cfgIdDim"),
-        init_cfg=load_header_cfg_id(cpp_class, "cfgIdInitval"),
+        dim_cfg=header_cfg_id(cpp_class, "cfgIdDim"),
+        init_cfg=header_cfg_id(cpp_class, "cfgIdInitval"),
     )

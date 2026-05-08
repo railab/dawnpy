@@ -8,7 +8,7 @@ from dawnpy.descriptor.support.utils import (
     resolve_reference,
     resolve_references,
 )
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "vecpack"
 cpp_class: str = "CProgVecPack"
@@ -75,7 +75,7 @@ def encode_binary(
         if input_ref in obj_ids
     ]
     if input_ids:
-        cfg_inputs = load_header_cfg_id(cpp_class, "cfgIdInputs")
+        cfg_inputs = header_cfg_id(cpp_class, "cfgIdInputs")
         items.append(
             (
                 cfg_id(3, prog_cls, 0, False, len(input_ids), cfg_inputs),
@@ -86,7 +86,7 @@ def encode_binary(
     output_ref = resolve_reference(config.get("output"))
     output_id = obj_ids.get(output_ref, 0) if output_ref else 0
     if output_id:
-        cfg_output = load_header_cfg_id(cpp_class, "cfgIdOutput")
+        cfg_output = header_cfg_id(cpp_class, "cfgIdOutput")
         items.append(
             (cfg_id(3, prog_cls, 0, False, 1, cfg_output), [output_id])
         )

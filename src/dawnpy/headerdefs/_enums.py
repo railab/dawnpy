@@ -6,8 +6,9 @@
 """Enum value lookup helpers (cfg-id, object-class, value maps)."""
 
 import re
-from functools import lru_cache
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from ._constants import _normalize_prog_class_name, _normalize_proto_class_name
 from ._parser import _extract_enum_constants_from_tree, _parse_cpp_header
@@ -25,9 +26,14 @@ def _enum_key_from_suffix(owner: str, suffix: str) -> str:
     return suffix.lower()
 
 
-def _enum_header_for_owner(owner: str) -> str | None:
+TypeDefs = Mapping[str, list[dict[str, Any]]]
+
+
+def _enum_header_for_owner(
+    owner: str, type_defs: TypeDefs | None = None
+) -> str | None:
     """Resolve include header path for an enum owner class."""
-    defs = load_header_type_defs()
+    defs = type_defs if type_defs is not None else load_header_type_defs()
     for group in ("io_types", "prog_types", "proto_types"):
         for item in defs.get(group, []):
             if item.get("cpp_class") == owner:
@@ -169,12 +175,20 @@ def _lookup_enum_value_in_headers(
     return None
 
 
-@lru_cache(maxsize=None)
-def load_header_enum_map(owner: str, enum_prefix: str) -> dict[str, str]:
-    """Load enum value map from a C++ header for one enum owner/prefix."""
-    header_rel = _enum_header_for_owner(owner)
+def load_header_enum_map_from_defs(
+    owner: str, enum_prefix: str, type_defs: TypeDefs
+) -> dict[str, str]:
+    """Load enum value map using preloaded header type definitions."""
+    header_rel = _enum_header_for_owner(owner, type_defs)
     if not header_rel:
         raise HeaderDefsError(f"No header found for enum owner {owner}")
+    return _load_header_enum_map(owner, enum_prefix, header_rel)
+
+
+def _load_header_enum_map(
+    owner: str, enum_prefix: str, header_rel: str
+) -> dict[str, str]:
+    """Load enum value map from one resolved owner header."""
     root = _require_repo_root()
     header = root / "dawn/include" / header_rel
     source, tree_root = _parse_cpp_header(header)
@@ -201,12 +215,18 @@ def load_header_enum_map(owner: str, enum_prefix: str) -> dict[str, str]:
     return out
 
 
-@lru_cache(maxsize=None)
-def load_header_cfg_id(owner: str, method_name: str) -> int:
-    """Resolve cfg-id enum value from one C++ helper method."""
-    header_rel = _enum_header_for_owner(owner)
+def load_header_cfg_id_from_defs(
+    owner: str, method_name: str, type_defs: TypeDefs
+) -> int:
+    """Resolve cfg-id enum value using preloaded header type definitions."""
+    header_rel = _enum_header_for_owner(owner, type_defs)
     if not header_rel:
         raise HeaderDefsError(f"No header found for enum owner {owner}")
+    return _load_header_cfg_id(owner, method_name, header_rel)
+
+
+def _load_header_cfg_id(owner: str, method_name: str, header_rel: str) -> int:
+    """Resolve cfg-id enum value from one resolved owner header."""
     root = _require_repo_root()
     header = root / "dawn/include" / header_rel
     source, tree_root = _parse_cpp_header(header)
@@ -235,12 +255,20 @@ def load_header_cfg_id(owner: str, method_name: str) -> int:
     )
 
 
-@lru_cache(maxsize=None)
-def load_header_object_class_name(owner: str, method_name: str) -> str:
-    """Resolve descriptor class name from one C++ objectId* helper method."""
-    header_rel = _enum_header_for_owner(owner)
+def load_header_object_class_name_from_defs(
+    owner: str, method_name: str, type_defs: TypeDefs
+) -> str:
+    """Resolve class name using preloaded header type definitions."""
+    header_rel = _enum_header_for_owner(owner, type_defs)
     if not header_rel:
         raise HeaderDefsError(f"No header found for enum owner {owner}")
+    return _load_header_object_class_name(owner, method_name, header_rel)
+
+
+def _load_header_object_class_name(
+    owner: str, method_name: str, header_rel: str
+) -> str:
+    """Resolve descriptor class name from one resolved owner header."""
     root = _require_repo_root()
     header = root / "dawn/include" / header_rel
     source, _tree_root = _parse_cpp_header(header)
@@ -270,12 +298,20 @@ def load_header_object_class_name(owner: str, method_name: str) -> str:
     )
 
 
-@lru_cache(maxsize=None)
-def load_header_enum_value_ids(owner: str, enum_prefix: str) -> dict[str, int]:
-    """Load enum value map (descriptor key -> integer enum value)."""
-    header_rel = _enum_header_for_owner(owner)
+def load_header_enum_value_ids_from_defs(
+    owner: str, enum_prefix: str, type_defs: TypeDefs
+) -> dict[str, int]:
+    """Load enum integer map using preloaded header type definitions."""
+    header_rel = _enum_header_for_owner(owner, type_defs)
     if not header_rel:
         raise HeaderDefsError(f"No header found for enum owner {owner}")
+    return _load_header_enum_value_ids(owner, enum_prefix, header_rel)
+
+
+def _load_header_enum_value_ids(
+    owner: str, enum_prefix: str, header_rel: str
+) -> dict[str, int]:
+    """Load enum integer map from one resolved owner header."""
     root = _require_repo_root()
     header = root / "dawn/include" / header_rel
     source, tree_root = _parse_cpp_header(header)

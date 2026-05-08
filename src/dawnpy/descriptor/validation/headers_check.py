@@ -14,18 +14,13 @@ from collections.abc import Iterable, Sized
 from pathlib import Path
 from typing import Any, NamedTuple
 
+import dawnpy.headerdefs.bundle as header_bundle
 from dawnpy.descriptor.definitions import io_family as _io
 from dawnpy.descriptor.definitions import prog_family as _prog
 from dawnpy.descriptor.definitions import proto_family as _proto
 from dawnpy.descriptor.definitions.type_info import ConfigField
-from dawnpy.headerdefs import (
-    HeaderDefsError,
-    find_repo_root,
-    load_header_cfg_id,
-    load_header_defs,
-    load_header_enum_value_ids,
-    load_header_type_defs,
-)
+from dawnpy.headerdefs import HeaderDefsError, find_repo_root
+from dawnpy.headerdefs.bundle import HeaderBundle
 from dawnpy.sources import DawnSourcesMissing
 
 
@@ -48,8 +43,9 @@ def collect_header_summary() -> HeaderCheckSummary:
     if root is None:
         raise DawnSourcesMissing("Could not locate Dawn repository root.")
 
-    const_defs = load_header_defs()
-    type_defs = load_header_type_defs()
+    defs = header_bundle.load_header_bundle()
+    const_defs = defs.header_defs
+    type_defs = defs.type_defs
 
     dtypes = const_defs.get("dtype", [])
     io_classes = const_defs.get("io_classes", {})
@@ -98,14 +94,20 @@ def _parse_helper_token(token: str) -> tuple[str, str] | None:
     return owner, method
 
 
-def _check_field(label: str, type_name: str, field: ConfigField) -> list[str]:
+def _check_field(
+    label: str,
+    type_name: str,
+    field: ConfigField,
+    defs: HeaderBundle | None = None,
+) -> list[str]:
     """Verify one field's cpp_helper and enum_prefix resolve via headerdefs."""
     out: list[str] = []
+    source = defs if defs is not None else header_bundle.load_header_bundle()
     parsed = _parse_helper_token(field.cpp_helper)
     if parsed is not None:
         owner, method = parsed
         try:
-            load_header_cfg_id(owner, method)
+            source.cfg_id(owner, method)
         except HeaderDefsError as exc:
             out.append(
                 f"{label}::{type_name}.{field.name}: "
@@ -116,7 +118,7 @@ def _check_field(label: str, type_name: str, field: ConfigField) -> list[str]:
     if parsed_enum is not None:
         owner, prefix = parsed_enum
         try:
-            load_header_enum_value_ids(owner, prefix)
+            source.enum_value_ids(owner, prefix)
         except HeaderDefsError as exc:
             out.append(
                 f"{label}::{type_name}.{field.name}: "
@@ -128,23 +130,24 @@ def _check_field(label: str, type_name: str, field: ConfigField) -> list[str]:
 def check_inline_field_schemas() -> list[str]:
     """Walk handler-owned config_fields, return resolution errors."""
     errors: list[str] = []
+    defs = header_bundle.load_header_bundle()
 
     for field in _walk_fields(_io.get_common_fields()):
-        errors.extend(_check_field("io", "<common>", field))
-    for io_type, fields in _io._index_fields_by_type().items():
+        errors.extend(_check_field("io", "<common>", field, defs))
+    for io_type, fields in _io._index_fields_by_type(defs).items():
         for field in _walk_fields(fields):
-            errors.extend(_check_field("io", io_type, field))
+            errors.extend(_check_field("io", io_type, field, defs))
 
     for field in _walk_fields(_prog.get_standard_fields()):
-        errors.extend(_check_field("prog", "<standard>", field))
+        errors.extend(_check_field("prog", "<standard>", field, defs))
     for prog_type, fields in _prog._index_fields_by_type().items():
         for field in _walk_fields(fields):
-            errors.extend(_check_field("prog", prog_type, field))
+            errors.extend(_check_field("prog", prog_type, field, defs))
 
     for field in _walk_fields(_proto.get_standard_fields()):
-        errors.extend(_check_field("proto", "<standard>", field))
-    for proto_type, entry in _proto._index_proto_entries().items():
+        errors.extend(_check_field("proto", "<standard>", field, defs))
+    for proto_type, entry in _proto._index_proto_entries(defs).items():
         for field in _walk_fields(entry.fields):
-            errors.extend(_check_field("proto", proto_type, field))
+            errors.extend(_check_field("proto", proto_type, field, defs))
 
     return errors

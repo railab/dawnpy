@@ -20,6 +20,8 @@ from dawnpy.descriptor.definitions.objects import (
 )
 from dawnpy.descriptor.definitions.registry import PROG_TYPES
 
+pytestmark = pytest.mark.usefixtures("source_free_headers")
+
 
 def test_descriptor_object_validate():
     assert DescriptorObject("foo").validate() == []

@@ -8,7 +8,7 @@ from dawnpy.descriptor.support.utils import (
     resolve_reference,
     resolve_references,
 )
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "onetomany"
 cpp_class: str = "CProgOneToMany"
@@ -71,7 +71,7 @@ def encode_binary(
     input_ref = resolve_reference(config.get("input"))
     input_id = obj_ids.get(input_ref, 0) if input_ref else 0
     if input_id:
-        cfg_input = load_header_cfg_id(cpp_class, "cfgIdInput")
+        cfg_input = header_cfg_id(cpp_class, "cfgIdInput")
         items.append((cfg_id(3, prog_cls, 0, False, 1, cfg_input), [input_id]))
 
     output_ids = [
@@ -80,7 +80,7 @@ def encode_binary(
         if output_ref in obj_ids
     ]
     if output_ids:
-        cfg_outputs = load_header_cfg_id(cpp_class, "cfgIdOutputs")
+        cfg_outputs = header_cfg_id(cpp_class, "cfgIdOutputs")
         items.append(
             (
                 cfg_id(3, prog_cls, 0, False, len(output_ids), cfg_outputs),

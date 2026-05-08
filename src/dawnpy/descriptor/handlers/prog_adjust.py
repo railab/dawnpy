@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.words import cfg_id
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 if TYPE_CHECKING:
     from dawnpy.descriptor.definitions.objects import ProgramObject
@@ -82,7 +82,7 @@ def encode_binary(
         src_id = obj_ids.get(obj.inputs[0])
         dst_id = obj_ids.get(obj.outputs[0])
         if src_id is not None and dst_id is not None:
-            cfg_iobind = load_header_cfg_id(cpp_class, "cfgIdIOBind")
+            cfg_iobind = header_cfg_id(cpp_class, "cfgIdIOBind")
             items.append(
                 (
                     cfg_id(3, prog_cls, 0, False, 2, cfg_iobind),
@@ -96,5 +96,5 @@ def encode_binary(
         return  # pragma: no cover
     offset = int(params.get("offset", 0))
     scale = int(params.get("scale", 1))
-    cfg = load_header_cfg_id(cpp_class, "cfgParams")
+    cfg = header_cfg_id(cpp_class, "cfgParams")
     items.append((cfg_id(3, prog_cls, 0, False, 2, cfg), [offset, scale]))

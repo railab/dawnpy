@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.words import cfg_id
 from dawnpy.descriptor.support.utils import resolve_references
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 if TYPE_CHECKING:
     from dawnpy.descriptor.definitions.objects import ProgramObject
@@ -131,7 +131,7 @@ def encode_binary(
     targets = config.get("targets", [])
     target_words = [obj_ids[target] for target in targets if target in obj_ids]
     if target_words:
-        cfg_t = load_header_cfg_id(cpp_class, "cfgIdTargets")
+        cfg_t = header_cfg_id(cpp_class, "cfgIdTargets")
         items.append(
             (
                 cfg_id(3, prog_cls, 0, False, len(target_words), cfg_t),
@@ -148,7 +148,7 @@ def encode_binary(
             state_words.append(int(state.get("value", 0)))
             state_words.append(int(state.get("dwell_us", 0)))
     if state_words:
-        cfg_s = load_header_cfg_id(cpp_class, "cfgIdStates")
+        cfg_s = header_cfg_id(cpp_class, "cfgIdStates")
         items.append(
             (
                 cfg_id(3, prog_cls, 0, True, len(state_words), cfg_s),

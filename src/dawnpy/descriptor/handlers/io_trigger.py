@@ -18,7 +18,7 @@ from dawnpy.descriptor.handlers._io_targets_common import (
     emit_targets_and_allowed_cpp,
     encode_targets_and_allowed,
 )
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 if TYPE_CHECKING:
     from dawnpy.descriptor.definitions.objects import IoObject
@@ -60,8 +60,8 @@ def encode_binary(ctx: _IOSerializeContext) -> None:
     """Emit targets list + allowed bitmask cfg items."""
     encode_targets_and_allowed(
         ctx,
-        targets_cfg=load_header_cfg_id(cpp_class, "cfgIdAllocObj"),
-        allowed_cfg=load_header_cfg_id(cpp_class, "cfgIdAllowed"),
+        targets_cfg=header_cfg_id(cpp_class, "cfgIdAllocObj"),
+        allowed_cfg=header_cfg_id(cpp_class, "cfgIdAllowed"),
         allowed_bits=resolve_allowed_bits(cpp_class, "TRIG_ALLOW_"),
     )
 

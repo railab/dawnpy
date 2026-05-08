@@ -9,7 +9,7 @@ from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.io_serialization import _IOSerializeContext
 from dawnpy.descriptor.encoding.words import cfg_id
 from dawnpy.descriptor.support.formatting import DescriptorFormatHelper
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "fileio"
 cpp_class: str = "CIOFile"
@@ -49,7 +49,7 @@ def encode_binary(ctx: _IOSerializeContext) -> None:
                     int(ctx.io_dtype_map["char"]),
                     False,
                     len(path_words),
-                    load_header_cfg_id(cpp_class, "cfgIdPath"),
+                    header_cfg_id(cpp_class, "cfgIdPath"),
                 ),
                 path_words,
             )
@@ -63,7 +63,7 @@ def encode_binary(ctx: _IOSerializeContext) -> None:
                     int(ctx.io_dtype_map["uint8"]),
                     False,
                     1,
-                    load_header_cfg_id(cpp_class, "cfgIdPerm"),
+                    header_cfg_id(cpp_class, "cfgIdPerm"),
                 ),
                 [int(config["perm"])],
             )

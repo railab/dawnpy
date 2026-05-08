@@ -20,7 +20,7 @@ from dawnpy.descriptor.support.utils import (
     resolve_flexible_reference,
     resolve_reference,
 )
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 if TYPE_CHECKING:
     from dawnpy.descriptor.definitions.objects import ProgramObject
@@ -114,7 +114,7 @@ def encode_binary(
                 [obj_ids[src], obj_ids[out], obj_ids[sel], obj_ids[stat]]
             )
         if words:
-            cfg = load_header_cfg_id(cpp_class, "cfgIdIOBind")
+            cfg = header_cfg_id(cpp_class, "cfgIdIOBind")
             items.append(
                 (cfg_id(3, prog_cls, 0, False, len(words), cfg), words)
             )

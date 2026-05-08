@@ -10,13 +10,15 @@ types. Header discovery supplies the built-in program list and each
 per-type handler supplies the C++ binding policy and config schema.
 """
 
+import dawnpy.headerdefs.bundle as header_bundle
 from dawnpy.descriptor.definitions.type_info import (
     ConfigField,
     ProgTypeInfo,
     TypeRegistration,
 )
 from dawnpy.descriptor.handlers import PROG_HANDLER_REGISTRY
-from dawnpy.headerdefs import HeaderDefsError, load_header_type_defs
+from dawnpy.headerdefs import HeaderDefsError
+from dawnpy.headerdefs.bundle import HeaderBundle
 
 # Standard fields applied to every PROG type. The ``cpp_helper`` uses the
 # templated ``{cpp_class}`` token because the generator emits the helper
@@ -50,10 +52,12 @@ def _index_fields_by_type() -> dict[str, list[ConfigField]]:
     return out
 
 
-def build_registration() -> TypeRegistration:
+def build_registration(
+    defs: HeaderBundle | None = None,
+) -> TypeRegistration:
     """Build the built-in PROG :class:`TypeRegistration`."""
-    defs = load_header_type_defs()
-    items = defs.get("prog_types", [])
+    source = defs if defs is not None else header_bundle.load_header_bundle()
+    items = source.type_defs.get("prog_types", [])
     if not isinstance(items, list):
         raise HeaderDefsError("Header Program type definitions are invalid")
 

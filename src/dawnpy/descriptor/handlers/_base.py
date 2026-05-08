@@ -384,9 +384,11 @@ class ProgHandlerAdapter(ModuleHandlerAdapter):
         if custom is not None:
             return str(custom(obj))
         try:
-            from dawnpy.headerdefs import load_header_object_class_name
+            from dawnpy.headerdefs.bundle import (
+                header_object_class_name,
+            )
 
-            return load_header_object_class_name(self.cpp_class, "objectId")
+            return header_object_class_name(self.cpp_class, "objectId")
         except Exception:
             return str(obj.prog_type)
 
@@ -489,9 +491,11 @@ class ProtoHandlerAdapter(ModuleHandlerAdapter):
             return str(custom(obj))
         proto_type = str(getattr(obj, "proto_type", self.yaml_type))
         try:
-            from dawnpy.headerdefs import load_header_object_class_name
+            from dawnpy.headerdefs.bundle import (
+                header_object_class_name,
+            )
 
-            return load_header_object_class_name(self.cpp_class, "objectId")
+            return header_object_class_name(self.cpp_class, "objectId")
         except Exception:
             return proto_type
 

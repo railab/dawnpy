@@ -8,7 +8,7 @@ from dawnpy.descriptor.handlers._prog_common import (
     append_standard_iobind,
     iobind_field,
 )
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "expression"
 cpp_class: str = "CProgExpression"
@@ -40,7 +40,7 @@ def encode_binary(
     config = obj.config if isinstance(obj.config, dict) else {}
     op = config.get("op", [])
     if op:
-        cfg_o = load_header_cfg_id(cpp_class, "cfgIdOp")
+        cfg_o = header_cfg_id(cpp_class, "cfgIdOp")
         items.append(
             (
                 cfg_id(3, prog_cls, 0, False, 2, cfg_o),

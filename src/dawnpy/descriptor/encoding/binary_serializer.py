@@ -46,7 +46,7 @@ from dawnpy.descriptor.encoding.words import cfg_id, dtype_id_by_name
 from dawnpy.descriptor.handlers import IO_HANDLER_REGISTRY
 from dawnpy.descriptor.support.formatting import DescriptorFormatHelper
 from dawnpy.descriptor.support.vars import load_yaml_with_vars
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 from dawnpy.objectid import ObjectIdDecoder
 
 # ---------------------------------------------------------------------------
@@ -175,7 +175,7 @@ def _append_limits_items(
     for key, helper in _LIMIT_KEY_TO_HELPER:
         if key not in limits_cfg:
             continue
-        cfg_enum = load_header_cfg_id("CIOCommon", helper)
+        cfg_enum = header_cfg_id("CIOCommon", helper)
         words_data = _limit_value_words(limits_cfg[key], dtype_name)
         size = len(words_data)
         items.append(
@@ -191,8 +191,8 @@ def _serialize_io_object(  # noqa: C901
     config_rw_grants: ConfigRwGrants | None = None,
 ) -> None:
     """Serialize a single IO object into descriptor words."""
-    common_device_cfg = load_header_cfg_id("CIOCommon", "cfgIdDevno")
-    common_notify_cfg = load_header_cfg_id("CIOCommon", "cfgIdNotify")
+    common_device_cfg = header_cfg_id("CIOCommon", "cfgIdDevno")
+    common_notify_cfg = header_cfg_id("CIOCommon", "cfgIdNotify")
     grants = config_rw_grants or {}
 
     io_cls_name = _io_class_name(obj)

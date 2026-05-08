@@ -14,7 +14,8 @@ and loads definitions directly from C++ headers at runtime.
 
 from typing import Any, NamedTuple
 
-from dawnpy.headerdefs import HeaderDefsError, load_header_defs
+import dawnpy.headerdefs.bundle as header_bundle
+from dawnpy.headerdefs import HeaderDefsError
 
 
 class DecodedObjectId(NamedTuple):
@@ -109,7 +110,7 @@ class ObjectIdDecoder:
     def _load_from_headers(self) -> bool:
         """Load definitions from C++ headers; return False on failure."""
         try:
-            defs = load_header_defs()
+            defs = header_bundle.load_header_bundle().header_defs
         except (HeaderDefsError, FileNotFoundError, KeyError):
             return False
 

@@ -23,6 +23,8 @@ from dawnpy.descriptor.generation.io_codegen import IoConfigGenerator
 from dawnpy.descriptor.generation.prog import ProgramConfigGenerator
 from dawnpy.descriptor.support.formatting import DescriptorFormatHelper
 
+pytestmark = pytest.mark.usefixtures("source_free_headers")
+
 
 def to_io_obj(spec: dict, obj_id: str = "test_io") -> IoObject:
     """Helper to create IoObject from partial spec."""
@@ -662,6 +664,39 @@ ios:
         from dawnpy.descriptor.handlers import proto_nimble
 
         assert proto_nimble._imds_ext_cfg(1, 4) == 0x401
+
+    def test_generate_nimble_imds_scalar_binding(self, generator):
+        """IMDS accepts direct IO IDs when no metadata is needed."""
+        spec = {
+            "ios": [
+                {
+                    "id": "temp1",
+                    "type": "dummy",
+                    "instance": 1,
+                    "dtype": "float",
+                }
+            ],
+            "protocols": [
+                {
+                    "id": "nimble1",
+                    "type": "nimble",
+                    "instance": 1,
+                    "config": {
+                        "services": {
+                            "imds": {
+                                "temperature": "temp1",
+                            }
+                        }
+                    },
+                }
+            ],
+        }
+
+        generator.parse_spec(spec)
+        output = "\n".join(generator.generate_descriptor_array())
+
+        assert "CProtoNimblePrph::cfgIdIOBindImds(6)" in output
+        assert "TEMP1," in output
 
     def test_nimble_aios_extension_cfg_word(self):
         """AIOS compact extension helper packs kind and payload size."""
@@ -2199,39 +2234,75 @@ class TestProtoGeneratorRegistry:
         from dawnpy.headerdefs import HeaderDefsError
 
         monkeypatch.setattr(
-            loader_mod,
-            "load_header_metadata_defs",
+            loader_mod.header_bundle,
+            "load_header_bundle",
             lambda: (_ for _ in ()).throw(HeaderDefsError("boom")),
         )
-        with pytest.raises(RuntimeError, match="metadata field definitions"):
+        with pytest.raises(RuntimeError, match="header definitions"):
             ConfigLoader()
 
-    def test_load_nimble_services_failure_raises_runtimeerror(
-        self, monkeypatch
-    ):
-        """Test nimble header load failure is wrapped as RuntimeError."""
+    def test_config_loader_reuses_one_header_definition_set(self, monkeypatch):
+        """ConfigLoader should not call the header bundle per subsection."""
         from dawnpy.descriptor.definitions import loader as loader_mod
         from dawnpy.descriptor.definitions.loader import ConfigLoader
-        from dawnpy.headerdefs import HeaderDefsError
+        from dawnpy.headerdefs.bundle import (
+            HeaderBundle,
+            HeaderDefinitionGroups,
+        )
+
+        calls = 0
+
+        def _load_defs() -> HeaderBundle:
+            nonlocal calls
+            calls += 1
+            return HeaderBundle(
+                HeaderDefinitionGroups(
+                    header_defs={"dtype": []},
+                    type_defs={
+                        "io_types": [],
+                        "prog_types": [],
+                        "proto_types": [],
+                    },
+                    metadata_defs=[{"name": "version"}],
+                )
+            )
 
         monkeypatch.setattr(
-            loader_mod,
-            "load_header_nimble_service_defs",
-            lambda: (_ for _ in ()).throw(HeaderDefsError("boom")),
+            loader_mod.header_bundle,
+            "load_header_bundle",
+            _load_defs,
         )
-        with pytest.raises(RuntimeError, match="nimble service definitions"):
-            ConfigLoader()
+        loader = ConfigLoader()
+
+        assert calls == 1
+        assert loader.metadata_fields == [{"name": "version"}]
 
     def test_builtin_io_hydrates_enum_values_from_headers(self, monkeypatch):
         """builtin_types/io_family hydrates enum_prefix via headerdefs."""
         from dawnpy.descriptor.definitions import io_family as builtin_io_mod
-
-        monkeypatch.setattr(
-            builtin_io_mod,
-            "load_header_enum_map",
-            lambda owner, prefix: {"start": "START", "stop": "STOP"},
+        from dawnpy.headerdefs.bundle import (
+            HeaderBundle,
+            HeaderDefinitionGroups,
+            HeaderLookupFunctions,
         )
-        indexed = builtin_io_mod._index_fields_by_type()
+        from tests.conftest import minimal_header_definition_set
+
+        base = minimal_header_definition_set()
+        defs = HeaderBundle(
+            HeaderDefinitionGroups(
+                header_defs=base.header_defs,
+                type_defs=base.type_defs,
+                metadata_defs=base.metadata_defs,
+                component_defs=base.component_defs,
+            ),
+            HeaderLookupFunctions(
+                enum_map_loader=lambda owner, prefix: {
+                    "start": "START",
+                    "stop": "STOP",
+                }
+            ),
+        )
+        indexed = builtin_io_mod._index_fields_by_type(defs)
         # control.allowed has enum_prefix CIOControl::CTRL_ALLOW_
         allowed = next(f for f in indexed["control"] if f.name == "allowed")
         assert allowed.enum_values == {"start": "START", "stop": "STOP"}
@@ -2241,28 +2312,31 @@ class TestProtoGeneratorRegistry:
         from dawnpy.descriptor.definitions import (
             proto_family as builtin_proto_mod,
         )
-
-        monkeypatch.setattr(
-            builtin_proto_mod,
-            "load_header_enum_map",
-            lambda owner, prefix: {"push": "PUSH"},
+        from dawnpy.headerdefs.bundle import (
+            HeaderBundle,
+            HeaderDefinitionGroups,
+            HeaderLookupFunctions,
         )
-        entries = builtin_proto_mod._index_proto_entries()
+        from tests.conftest import minimal_header_definition_set
+
+        base = minimal_header_definition_set()
+        defs = HeaderBundle(
+            HeaderDefinitionGroups(
+                header_defs=base.header_defs,
+                type_defs=base.type_defs,
+                metadata_defs=base.metadata_defs,
+                component_defs=base.component_defs,
+            ),
+            HeaderLookupFunctions(
+                enum_map_loader=lambda owner, prefix: {"push": "PUSH"}
+            ),
+        )
+        entries = builtin_proto_mod._index_proto_entries(defs)
         objects = next(f for f in entries["can"].fields if f.name == "objects")
         type_field = next(
             f for f in objects.element_fields if f.name == "type"
         )
         assert type_field.enum_values == {"push": "PUSH"}
-
-    def test_get_nimble_service_names(self):
-        """Test configured nimble service names are loaded."""
-        from dawnpy.descriptor.definitions.loader import ConfigLoader
-
-        loader = ConfigLoader()
-        names = loader.get_nimble_service_names()
-        assert "dis" in names
-        assert "aios" in names
-        assert "imds" in names
 
     def test_get_proto_nested_enum_map_and_prefix(self):
         """Test nested enum map loading for Modbus register type."""

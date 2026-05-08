@@ -25,11 +25,11 @@ from dawnpy.descriptor.encoding.words import dtype_id_by_name
 from dawnpy.descriptor.handlers import PROTO_HANDLER_REGISTRY
 from dawnpy.descriptor.handlers._base import ProtoHandler
 from dawnpy.descriptor.support.formatting import DescriptorFormatHelper
-from dawnpy.headerdefs import (
-    HeaderDefsError,
-    load_header_cfg_id,
-    load_header_enum_value_ids,
-    load_header_object_class_name,
+from dawnpy.headerdefs import HeaderDefsError
+from dawnpy.headerdefs.bundle import (
+    header_cfg_id,
+    header_enum_value_ids,
+    header_object_class_name,
 )
 
 if TYPE_CHECKING:
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 def _resolve_proto_cfg_ids(handler: ProtoHandler) -> dict[str, int]:
     """Resolve cfg-id helpers declared by the selected protocol handler."""
     return {
-        key: load_header_cfg_id(owner, method)
+        key: header_cfg_id(owner, method)
         for key, (owner, method) in handler.cfg_id_helpers().items()
     }
 
@@ -48,7 +48,7 @@ def _resolve_proto_cfg_ids(handler: ProtoHandler) -> dict[str, int]:
 def _safe_enum_value_ids(owner: str, prefix: str) -> dict[str, int]:
     """Resolve enum value map; return empty dict if the header is unknown."""
     try:
-        return load_header_enum_value_ids(owner, prefix)
+        return header_enum_value_ids(owner, prefix)
     except HeaderDefsError:
         return {}
 
@@ -107,7 +107,7 @@ def serialize_proto_object(  # noqa: C901
         cls_name = handler.object_class_name(obj)
     elif cpp_class is not None:  # pragma: no cover
         try:  # pragma: no cover
-            cls_name = load_header_object_class_name(cpp_class, "objectId")
+            cls_name = header_object_class_name(cpp_class, "objectId")
         except HeaderDefsError:  # pragma: no cover
             cls_name = None
     if not cls_name:

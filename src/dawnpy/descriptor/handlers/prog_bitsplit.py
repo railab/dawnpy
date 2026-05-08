@@ -9,7 +9,7 @@ from dawnpy.descriptor.handlers._prog_common import (
     iobind_field,
 )
 from dawnpy.descriptor.support.utils import resolve_references
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "bitsplit"
 cpp_class: str = "CProgBitSplit"
@@ -91,7 +91,7 @@ def encode_binary(
     config = obj.config if isinstance(obj.config, dict) else {}
     bits = config.get("bits", [])
     if bits:
-        cfg_b = load_header_cfg_id(cpp_class, "cfgIdBits")
+        cfg_b = header_cfg_id(cpp_class, "cfgIdBits")
         items.append(
             (
                 cfg_id(3, prog_cls, 0, False, len(bits), cfg_b),

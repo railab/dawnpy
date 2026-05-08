@@ -19,7 +19,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from dawnpy.descriptor.encoding.words import dtype_id_by_name
-from dawnpy.headerdefs import HeaderDefsError, load_header_enum_value_ids
+from dawnpy.headerdefs import HeaderDefsError
+from dawnpy.headerdefs.bundle import header_enum_value_ids
 
 if TYPE_CHECKING:
     from dawnpy.descriptor.config_access import ConfigRwGrants
@@ -59,7 +60,7 @@ def resolve_dtype(
 def resolve_allowed_bits(owner: str, prefix: str) -> dict[str, int]:
     """Return enum values normalized to bit positions (control/trigger)."""
     try:
-        raw = load_header_enum_value_ids(owner, prefix)
+        raw = header_enum_value_ids(owner, prefix)
     except HeaderDefsError:  # pragma: no cover
         return {}
     out: dict[str, int] = {}

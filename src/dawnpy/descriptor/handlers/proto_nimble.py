@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import struct
 import uuid
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 from dawnpy.descriptor.definitions.type_info import ConfigField
@@ -19,6 +20,7 @@ from dawnpy.descriptor.support.utils import (
     resolve_flexible_reference,
     resolve_reference,
 )
+from dawnpy.headerdefs._nimble import load_header_nimble_service_defs
 
 if TYPE_CHECKING:
     from dawnpy.descriptor.definitions.objects import ProtocolObject
@@ -726,20 +728,29 @@ def encode_binary(  # noqa: C901
 # ---------------------------------------------------------------------------
 
 
+@lru_cache(maxsize=1)
+def _nimble_service_defs() -> dict[str, dict[str, Any]]:
+    """Return Nimble service schemas owned by this protocol handler."""
+    return load_header_nimble_service_defs()
+
+
+def _nimble_service_schema(svc_name: str) -> dict[str, Any] | None:
+    """Return one Nimble service schema by YAML service name."""
+    return _nimble_service_defs().get(svc_name)
+
+
 def _is_service_enabled(  # pragma: no cover
-    config_loader: Any, svc_name: str, services_config: dict[str, Any]
+    svc_name: str, services_config: dict[str, Any]
 ) -> bool:
     """Return True when service is present and has a registered schema."""
     if svc_name not in services_config:
         return False
-    return config_loader.get_nimble_service_config(svc_name) is not None
+    return _nimble_service_schema(svc_name) is not None
 
 
-def _service_header(  # pragma: no cover
-    config_loader: Any, svc_name: str
-) -> str | None:
+def _service_header(svc_name: str) -> str | None:  # pragma: no cover
     """Return C++ header path for a Nimble service."""
-    schema = config_loader.get_nimble_service_config(svc_name)
+    schema = _nimble_service_schema(svc_name)
     if not schema:  # pragma: no cover
         return None
     return str(schema.get("header", ""))
@@ -752,8 +763,8 @@ def collect_cpp_headers(  # pragma: no cover
     headers: set[str] = set()
     services_config = config.get("services", {})
     for svc_name in NIMBLE_SERVICE_ORDER:
-        if _is_service_enabled(gctx.config_loader, svc_name, services_config):
-            header = _service_header(gctx.config_loader, svc_name)
+        if _is_service_enabled(svc_name, services_config):
+            header = _service_header(svc_name)
             if header:
                 headers.add(header)
     if isinstance(services_config.get("custom"), list):
@@ -774,7 +785,7 @@ def generate_cpp(  # noqa: C901  # pragma: no cover
     if "gap_name" in config:
         config_count += 1
     for svc_name in NIMBLE_SERVICE_ORDER:
-        if _is_service_enabled(gctx.config_loader, svc_name, services_config):
+        if _is_service_enabled(svc_name, services_config):
             config_count += 1
     custom_services = services_config.get("custom", [])
     if isinstance(custom_services, list):
@@ -795,7 +806,7 @@ def generate_cpp(  # noqa: C901  # pragma: no cover
         lines.append("")
 
     for svc_name in NIMBLE_SERVICE_ORDER:
-        if _is_service_enabled(gctx.config_loader, svc_name, services_config):
+        if _is_service_enabled(svc_name, services_config):
             svc_config = services_config.get(svc_name, {})
             lines.extend(_generate_service(svc_name, svc_config, gctx))
     if isinstance(custom_services, list):
@@ -809,7 +820,7 @@ def _generate_service(  # pragma: no cover
     svc_name: str, svc_config: dict[str, Any], gctx: ProtoGeneratorContext
 ) -> list[str]:
     """Emit one Nimble service block."""
-    schema = gctx.config_loader.get_nimble_service_config(svc_name)
+    schema = _nimble_service_schema(svc_name)
     if not schema:  # pragma: no cover
         return []
     if svc_name == "dis":

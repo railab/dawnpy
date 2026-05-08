@@ -7,12 +7,10 @@
 
 from typing import Any
 
+import dawnpy.headerdefs.bundle as header_bundle
 from dawnpy.descriptor.definitions.type_info import ConfigField, ProtoSchema
-from dawnpy.headerdefs import (
-    HeaderDefsError,
-    load_header_metadata_defs,
-    load_header_nimble_service_defs,
-)
+from dawnpy.headerdefs import HeaderDefsError
+from dawnpy.headerdefs.bundle import HeaderBundle
 
 
 class ConfigLoader:
@@ -20,8 +18,8 @@ class ConfigLoader:
 
     def __init__(self) -> None:
         """Initialize config loader."""
-        self.metadata_fields = self._load_metadata_fields()
-        self.nimble_service_config = self._load_nimble_service_config()
+        defs = self._load_header_definitions()
+        self.metadata_fields = self._load_metadata_fields(defs)
 
     def get_io_config_fields(self, io_type: str) -> list[ConfigField]:
         """Return common + per-type config fields for an IO yaml-token."""
@@ -58,12 +56,6 @@ class ConfigLoader:
             return []  # pragma: no cover
         return list(info.config_fields)
 
-    def get_nimble_service_names(self) -> list[str]:
-        """Return list of supported Nimble service names."""
-        return list(
-            self.nimble_service_config.get("by_name", {}).keys()
-        )  # pragma: no cover
-
     def get_proto_config_schema(self, proto_type: str) -> ProtoSchema | None:
         """Return resolved per-protocol config schema, or ``None``."""
         from dawnpy.descriptor.definitions import registry as _types
@@ -86,38 +78,25 @@ class ConfigLoader:
             return False  # pragma: no cover
         return schema.uses_standard_bindings
 
-    def _load_metadata_fields(self) -> list[dict[str, Any]]:
-        """Load metadata field definitions."""
+    def _load_header_definitions(self) -> HeaderBundle:
+        """Load the cached header definition bundle."""
         try:
-            result = load_header_metadata_defs()
+            return header_bundle.load_header_bundle()
         except HeaderDefsError as exc:
             raise RuntimeError(
-                f"Failed to load metadata field definitions: {exc}"
+                f"Failed to load header definitions: {exc}"
             ) from exc
+
+    def _load_metadata_fields(
+        self, defs: HeaderBundle
+    ) -> list[dict[str, Any]]:
+        """Load metadata field definitions."""
+        result = defs.metadata_defs
         return result
 
     def get_metadata_fields(self) -> list[dict[str, Any]]:
         """Return all metadata field definitions."""
         return self.metadata_fields
-
-    def _load_nimble_service_config(self) -> dict[str, Any]:
-        """Load nimble service configuration."""
-        try:
-            defs = load_header_nimble_service_defs()
-        except HeaderDefsError as exc:
-            raise RuntimeError(
-                f"Failed to load nimble service definitions: {exc}"
-            ) from exc
-        return {"by_name": defs}
-
-    def get_nimble_service_config(
-        self, service_name: str
-    ) -> dict[str, Any] | None:
-        """Return configuration for a nimble service by name."""
-        result: dict[str, Any] | None = self.nimble_service_config[
-            "by_name"
-        ].get(service_name)
-        return result
 
     def get_proto_nested_enum_map(
         self, proto_type: str, nested_field: str, element_field: str

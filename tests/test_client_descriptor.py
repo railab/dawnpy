@@ -21,6 +21,8 @@ from dawnpy.descriptor.definitions.objects import (
     ProtocolObject,
 )
 
+pytestmark = pytest.mark.usefixtures("source_free_headers")
+
 
 def _write_descriptor(tmp_path, content: str) -> str:
     path = tmp_path / "descriptor.yaml"

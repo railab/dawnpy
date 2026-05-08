@@ -29,6 +29,8 @@ from dawnpy.descriptor.definitions.registry import (
     load_registrations_from_path,
 )
 
+pytestmark = pytest.mark.usefixtures("source_free_headers")
+
 
 @pytest.fixture
 def mock_builtin_registry(monkeypatch):

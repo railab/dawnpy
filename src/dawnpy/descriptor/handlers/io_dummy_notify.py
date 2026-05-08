@@ -10,7 +10,7 @@ from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.io_serialization import _IOSerializeContext
 from dawnpy.descriptor.encoding.words import cfg_id
 from dawnpy.descriptor.handlers._io_dummy_common import encode_dummy_block
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "dummy_notify"
 cpp_class: str = "CIODummyNotify"
@@ -58,8 +58,8 @@ def encode_binary(ctx: _IOSerializeContext) -> None:
     """Emit dim, init_value, and interval_us cfg items."""
     encode_dummy_block(
         ctx,
-        dim_cfg=load_header_cfg_id(cpp_class, "cfgIdDim"),
-        init_cfg=load_header_cfg_id(cpp_class, "cfgIdInitval"),
+        dim_cfg=header_cfg_id(cpp_class, "cfgIdDim"),
+        init_cfg=header_cfg_id(cpp_class, "cfgIdInitval"),
     )
     if "interval_us" in ctx.config:
         ctx.items.append(
@@ -72,7 +72,7 @@ def encode_binary(ctx: _IOSerializeContext) -> None:
                         ctx.config_rw_grants, ctx.obj.obj_id, "interval_us"
                     ),
                     1,
-                    load_header_cfg_id(cpp_class, "cfgInterval"),
+                    header_cfg_id(cpp_class, "cfgInterval"),
                 ),
                 [int(ctx.config["interval_us"])],
             )
@@ -90,7 +90,7 @@ def encode_binary(ctx: _IOSerializeContext) -> None:
                         "notify_on_write",
                     ),
                     1,
-                    load_header_cfg_id(cpp_class, "cfgNotifyOnWrite"),
+                    header_cfg_id(cpp_class, "cfgNotifyOnWrite"),
                 ),
                 [int(bool(ctx.config["notify_on_write"]))],
             )

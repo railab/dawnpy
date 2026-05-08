@@ -12,6 +12,8 @@ import pytest
 from dawnpy.descriptor.client import load_client_descriptor
 from dawnpy.descriptor.support import vars as vars_mod
 
+pytestmark = pytest.mark.usefixtures("source_free_headers")
+
 
 def test_vars_kconfig_expression(tmp_path):
     yaml_content = """

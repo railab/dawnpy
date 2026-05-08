@@ -14,6 +14,8 @@ import pytest
 
 from dawnpy.objectid import DecodedObjectId, ObjectIdDecoder
 
+pytestmark = pytest.mark.usefixtures("source_free_headers")
+
 
 @pytest.fixture
 def decoder():

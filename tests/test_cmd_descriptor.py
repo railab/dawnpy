@@ -7,7 +7,6 @@
 
 import importlib
 import struct
-import sys
 import tempfile
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -25,6 +24,7 @@ import dawnpy.descriptor.encoding.binary_serializer as binary_serializer_mod
 import dawnpy.descriptor.encoding.prog_serializer as prog_serializer_mod
 import dawnpy.descriptor.encoding.proto_serializer as proto_serializer_mod
 import dawnpy.descriptor.validation.headers_check as headers_check_mod
+import dawnpy.headerdefs.bundle as header_bundle_mod
 from dawnpy.commands import (
     cmd_desc_headers_check as cmd_desc_headers_check_mod,
 )
@@ -114,10 +114,13 @@ from dawnpy.descriptor.validation.validate import (
 from dawnpy.descriptor.validation.validate import (
     can_has_unresolved_kconfig as _can_has_unresolved_kconfig,
 )
-from dawnpy.headerdefs import HeaderDefsError, load_header_cfg_id
+from dawnpy.headerdefs import HeaderDefsError
+from dawnpy.headerdefs.bundle import header_cfg_id
 from dawnpy.objectid import ObjectIdDecoder
 from dawnpy.sources import DawnSourcesMissing
+from tests.conftest import minimal_header_bundle, minimal_header_lookups
 
+pytestmark = pytest.mark.usefixtures("source_free_headers")
 _COMMAND_IMPORTS = (
     cmd_desc_bin_mod,
     cmd_desc_gen_mod,
@@ -130,8 +133,6 @@ _COMMAND_IMPORTS = (
 @pytest.fixture
 def mock_header_cfg_id(monkeypatch):
     """Replace Dawn header cfg-id lookups with fixed unit-test values."""
-    import dawnpy.descriptor.handlers.io_pwm as io_pwm_mod
-
     mapping = {
         ("CIOPwm", "cfgIdFreq"): 17,
         ("CIOCommon", "cfgIdDevno"): 4,
@@ -144,10 +145,13 @@ def mock_header_cfg_id(monkeypatch):
     def _fake(owner: str, method: str) -> int:
         return mapping[(owner, method)]
 
-    monkeypatch.setattr(io_pwm_mod, "load_header_cfg_id", _fake)
-    monkeypatch.setattr(io_config_mod, "load_header_cfg_id", _fake)
-    monkeypatch.setattr(binary_serializer_mod, "load_header_cfg_id", _fake)
-    monkeypatch.setattr(sys.modules[__name__], "load_header_cfg_id", _fake)
+    monkeypatch.setattr(
+        header_bundle_mod,
+        "load_header_bundle",
+        lambda: minimal_header_bundle(
+            lookups=minimal_header_lookups(cfg_id_loader=_fake)
+        ),
+    )
     return _fake
 
 
@@ -192,24 +196,26 @@ def test_headers_check_command_success(monkeypatch):
     monkeypatch.setattr(
         headers_check_mod, "find_repo_root", lambda: Path("/tmp/repo")
     )
-    monkeypatch.setattr(
-        headers_check_mod,
-        "load_header_defs",
-        lambda: {
+    groups = header_bundle_mod.HeaderDefinitionGroups(
+        header_defs={
             "dtype": [1, 2],
             "io_classes": {1: "a"},
             "prog_classes": {1: "b", 2: "c"},
             "proto_classes": {},
         },
-    )
-    monkeypatch.setattr(
-        headers_check_mod,
-        "load_header_type_defs",
-        lambda: {
+        type_defs={
             "io_types": [1],
             "prog_types": [1, 2],
             "proto_types": [1, 2, 3],
         },
+        metadata_defs=[],
+        component_defs={},
+    )
+    lookups = minimal_header_lookups(cfg_id_loader=lambda _owner, _method: 1)
+    monkeypatch.setattr(
+        header_bundle_mod,
+        "load_header_bundle",
+        lambda: minimal_header_bundle(groups=groups, lookups=lookups),
     )
 
     result = runner.invoke(cmd_desc_headers_check, [])
@@ -239,7 +245,11 @@ def test_headers_check_command_parse_failure(monkeypatch):
     def _boom():
         raise HeaderDefsError("bad header")
 
-    monkeypatch.setattr(headers_check_mod, "load_header_defs", _boom)
+    monkeypatch.setattr(
+        headers_check_mod.header_bundle,
+        "load_header_bundle",
+        _boom,
+    )
     result = runner.invoke(cmd_desc_headers_check, [])
     assert result.exit_code != 0
     assert "Header parse failed: bad header" in result.output
@@ -254,7 +264,9 @@ def test_headers_check_command_propagates_dawn_sources_missing(monkeypatch):
     def _missing():
         raise DawnSourcesMissing("headers vanished mid-load")
 
-    monkeypatch.setattr(headers_check_mod, "load_header_defs", _missing)
+    monkeypatch.setattr(
+        headers_check_mod.header_bundle, "load_header_bundle", _missing
+    )
     with pytest.raises(DawnSourcesMissing, match="headers vanished"):
         cmd_desc_headers_check_mod.cmd_desc_headers_check.callback(
             strict=False
@@ -267,20 +279,22 @@ def test_headers_check_strict_ok(monkeypatch):
     monkeypatch.setattr(
         headers_check_mod, "find_repo_root", lambda: Path("/tmp/repo")
     )
-    monkeypatch.setattr(
-        headers_check_mod,
-        "load_header_defs",
-        lambda: {
+    groups = header_bundle_mod.HeaderDefinitionGroups(
+        header_defs={
             "dtype": [],
             "io_classes": {},
             "prog_classes": {},
             "proto_classes": {},
         },
+        type_defs={"io_types": [], "prog_types": [], "proto_types": []},
+        metadata_defs=[],
+        component_defs={},
     )
+    lookups = minimal_header_lookups(cfg_id_loader=lambda _owner, _method: 1)
     monkeypatch.setattr(
-        headers_check_mod,
-        "load_header_type_defs",
-        lambda: {"io_types": [], "prog_types": [], "proto_types": []},
+        header_bundle_mod,
+        "load_header_bundle",
+        lambda: minimal_header_bundle(groups=groups, lookups=lookups),
     )
     monkeypatch.setattr(
         cmd_desc_headers_check_mod,
@@ -298,20 +312,22 @@ def test_headers_check_strict_fail(monkeypatch):
     monkeypatch.setattr(
         headers_check_mod, "find_repo_root", lambda: Path("/tmp/repo")
     )
-    monkeypatch.setattr(
-        headers_check_mod,
-        "load_header_defs",
-        lambda: {
+    groups = header_bundle_mod.HeaderDefinitionGroups(
+        header_defs={
             "dtype": [],
             "io_classes": {},
             "prog_classes": {},
             "proto_classes": {},
         },
+        type_defs={"io_types": [], "prog_types": [], "proto_types": []},
+        metadata_defs=[],
+        component_defs={},
     )
+    lookups = minimal_header_lookups(cfg_id_loader=lambda _owner, _method: 1)
     monkeypatch.setattr(
-        headers_check_mod,
-        "load_header_type_defs",
-        lambda: {"io_types": [], "prog_types": [], "proto_types": []},
+        header_bundle_mod,
+        "load_header_bundle",
+        lambda: minimal_header_bundle(groups=groups, lookups=lookups),
     )
     monkeypatch.setattr(
         cmd_desc_headers_check_mod,
@@ -355,7 +371,7 @@ def test_parse_helper_token_rejects_templated_owner():
     assert _parse_helper_token("Owner::method") == ("Owner", "method")
 
 
-def test_check_field_reports_unresolved(monkeypatch):
+def test_check_field_reports_unresolved():
     """_check_field flags helpers and enum_prefixes that fail to resolve."""
     from dawnpy.descriptor.definitions.type_info import ConfigField
     from dawnpy.descriptor.validation import headers_check as hc
@@ -367,15 +383,18 @@ def test_check_field_reports_unresolved(monkeypatch):
     def _boom_enum(owner, prefix):
         raise HeaderDefsError("missing-enum")
 
-    monkeypatch.setattr(hc, "load_header_cfg_id", _boom_cfg)
-    monkeypatch.setattr(hc, "load_header_enum_value_ids", _boom_enum)
-
     field = ConfigField(
         name="foo",
         cpp_helper="Owner::method",
         enum_prefix="Owner::PREFIX_",
     )
-    out = hc._check_field("io", "dummy", field)
+    defs = minimal_header_bundle(
+        lookups=minimal_header_lookups(
+            cfg_id_loader=_boom_cfg,
+            enum_value_ids_loader=_boom_enum,
+        )
+    )
+    out = hc._check_field("io", "dummy", field, defs)
     assert any("cpp_helper 'Owner::method' did not resolve" in s for s in out)
     assert any(
         "enum_prefix 'Owner::PREFIX_' did not resolve" in s for s in out
@@ -528,7 +547,7 @@ def test_validate_command_fails_for_disabled_dtype_in_yaml():
         assert "CONFIG_DAWN_DTYPE_FLOAT" in result.output
 
 
-def test_validate_command_detects_can_overlap_in_yaml():
+def test_validate_command_detects_can_overlap_in_yaml(monkeypatch):
     """Validate should fail when descriptor.yaml has CAN ID block overlap."""
     runner = CliRunner()
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -581,14 +600,12 @@ def test_validate_command_detects_can_overlap_in_yaml():
                 (0x101, "write[1]"),
             ],
         )
-        monkeypatch = pytest.MonkeyPatch()
         monkeypatch.setattr(
             importlib,
             "import_module",
             lambda name: fake_descriptor,
         )
         result = runner.invoke(cmd_desc_valid, [str(config_path)])
-        monkeypatch.undo()
 
         assert result.exit_code == 0
         assert "CAN overlap conflicts:" in result.output
@@ -1546,7 +1563,7 @@ def test_generate_descriptor_binary_pwm_freq_config(mock_header_cfg_id):
         if info["type"] == "uint32"
     )
     freq_cfg = cfg_id(
-        1, io_cls, dtype, False, 1, load_header_cfg_id("CIOPwm", "cfgIdFreq")
+        1, io_cls, dtype, False, 1, header_cfg_id("CIOPwm", "cfgIdFreq")
     )
     assert freq_cfg in words
     assert words[words.index(freq_cfg) + 1] == 1000
@@ -1599,7 +1616,7 @@ def test_generate_descriptor_binary_pwm_without_freq_has_no_type_config(
         if info["type"] == "uint32"
     )
     freq_cfg = cfg_id(
-        1, io_cls, dtype, True, 1, load_header_cfg_id("CIOPwm", "cfgIdFreq")
+        1, io_cls, dtype, True, 1, header_cfg_id("CIOPwm", "cfgIdFreq")
     )
     assert freq_cfg not in words
 
@@ -2433,7 +2450,7 @@ def test_io_config_binary_uses_config_io_rw_grant(mock_header_cfg_id):
         io_dtype_map["uint32"],
         True,
         1,
-        load_header_cfg_id("CIOPwm", "cfgIdFreq"),
+        header_cfg_id("CIOPwm", "cfgIdFreq"),
     )
 
 
@@ -3639,7 +3656,7 @@ def test_prog_yaml_driven_branches_and_errors(monkeypatch):
     # raises an "Unknown PROG class" error.
     monkeypatch.setattr(
         prog_serializer_mod,
-        "load_header_object_class_name",
+        "header_object_class_name",
         lambda owner, method: "missing_prog_class",
     )
     monkeypatch.setattr(
@@ -4014,7 +4031,7 @@ def test_serialize_proto_nimble_service_enum_paths(monkeypatch):
         return {"temperature": 2}
 
     monkeypatch.setattr(
-        proto_serializer_mod, "load_header_enum_value_ids", _enum_map
+        proto_serializer_mod, "header_enum_value_ids", _enum_map
     )
     words: list[int] = []
     serialize_proto_object(words, proto, obj_ids, decoder)
@@ -4037,9 +4054,7 @@ def test_serialize_proto_defensive_header_enum_failure(monkeypatch):
     def _raise(*_a):
         raise proto_serializer_mod.HeaderDefsError("missing")
 
-    monkeypatch.setattr(
-        proto_serializer_mod, "load_header_enum_value_ids", _raise
-    )
+    monkeypatch.setattr(proto_serializer_mod, "header_enum_value_ids", _raise)
     serialize_proto_object([], proto, {}, decoder)
 
 

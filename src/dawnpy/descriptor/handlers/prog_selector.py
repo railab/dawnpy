@@ -8,7 +8,7 @@ from dawnpy.descriptor.support.utils import (
     resolve_reference,
     resolve_references,
 )
-from dawnpy.headerdefs import load_header_cfg_id
+from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "selector"
 cpp_class: str = "CProgSelector"
@@ -66,7 +66,7 @@ def encode_binary(
     if ctrl_ref:
         ctrl_id = obj_ids.get(ctrl_ref, 0)
         if ctrl_id:
-            cfg_ctrl = load_header_cfg_id(cpp_class, "cfgIdControl")
+            cfg_ctrl = header_cfg_id(cpp_class, "cfgIdControl")
             items.append(
                 (cfg_id(3, prog_cls, 0, False, 1, cfg_ctrl), [ctrl_id])
             )
@@ -77,7 +77,7 @@ def encode_binary(
         obj_ids[data_ref] for data_ref in data_refs if data_ref in obj_ids
     ]
     if data_ids:
-        cfg_data = load_header_cfg_id(cpp_class, "cfgIdData")
+        cfg_data = header_cfg_id(cpp_class, "cfgIdData")
         items.append(
             (cfg_id(3, prog_cls, 0, False, len(data_ids), cfg_data), data_ids)
         )
@@ -92,5 +92,5 @@ def encode_binary(
     if tgt_ref:
         tgt_id = obj_ids.get(tgt_ref, 0)
         if tgt_id:
-            cfg_tgt = load_header_cfg_id(cpp_class, "cfgIdTarget")
+            cfg_tgt = header_cfg_id(cpp_class, "cfgIdTarget")
             items.append((cfg_id(3, prog_cls, 0, False, 1, cfg_tgt), [tgt_id]))
