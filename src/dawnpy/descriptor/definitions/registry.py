@@ -14,12 +14,10 @@ full guide.
 import importlib.util
 import sys
 from collections.abc import Iterable, Mapping
+from collections.abc import MutableMapping as MutableMappingABC
 from importlib.metadata import entry_points
 from pathlib import Path
-from typing import (
-    Any,
-    TypeVar,
-)
+from typing import Any, Iterator, TypeVar
 
 # Re-export the public TypeInfo dataclasses so consumers and OOT users
 # can keep importing them from dawnpy.descriptor.definitions.registry.
@@ -129,7 +127,7 @@ def _merge_into(
     reg_name: str,
     kind: str,
     src: Mapping[str, _T],
-    dst: dict[str, _T],
+    dst: MutableMappingABC[str, _T],
 ) -> None:
     for yaml_type, info in src.items():
         dst[yaml_type] = _merge_one(
@@ -139,9 +137,9 @@ def _merge_into(
 
 def _apply_registration(
     reg: TypeRegistration,
-    io_types: dict[str, IOTypeInfo],
-    prog_types: dict[str, ProgTypeInfo],
-    proto_types: dict[str, ProtoTypeInfo],
+    io_types: MutableMappingABC[str, IOTypeInfo],
+    prog_types: MutableMappingABC[str, ProgTypeInfo],
+    proto_types: MutableMappingABC[str, ProtoTypeInfo],
 ) -> None:
     """Merge a single registration into the in-memory type dicts."""
     _merge_into(reg.name, "io", reg.io_types, io_types)
@@ -193,17 +191,12 @@ def _iter_registrations() -> list[TypeRegistration]:
     return out
 
 
-# Load all type mappings at module initialization. Built-in types are
-# applied through the same _apply_registration path used by OOT plugins
-# so the built-in and OOT extension shapes match (single TypeRegistration
-# pattern). The deferred-import inside builtin_types.* breaks the
-# circular dependency on the IOTypeInfo / ProgTypeInfo / ProtoTypeInfo
-# / TypeRegistration classes defined above.
-DTYPE_MAP: dict[str, str] = _load_dtype_map()
-DTYPE_INITVAL_PARAM_MAP: dict[str, int] = _load_dtype_initval_param_map()
-IO_TYPES: dict[str, IOTypeInfo] = {}
-PROG_TYPES: dict[str, ProgTypeInfo] = {}
-PROTO_TYPES: dict[str, ProtoTypeInfo] = {}
+_DTYPE_MAP_DATA: dict[str, str] = {}
+_DTYPE_INITVAL_PARAM_MAP_DATA: dict[str, int] = {}
+_IO_TYPES_DATA: dict[str, IOTypeInfo] = {}
+_PROG_TYPES_DATA: dict[str, ProgTypeInfo] = {}
+_PROTO_TYPES_DATA: dict[str, ProtoTypeInfo] = {}
+_REGISTRY_LOADED = False
 
 
 def _bootstrap_builtin_types() -> None:
@@ -211,14 +204,89 @@ def _bootstrap_builtin_types() -> None:
     from dawnpy.descriptor.definitions import load_builtin_registrations
 
     for reg in load_builtin_registrations():
-        _apply_registration(reg, IO_TYPES, PROG_TYPES, PROTO_TYPES)
+        _apply_registration(
+            reg,
+            _IO_TYPES_DATA,
+            _PROG_TYPES_DATA,
+            _PROTO_TYPES_DATA,
+        )
 
 
-_bootstrap_builtin_types()
+def _ensure_registry_loaded() -> None:
+    """Populate dtype and type registries on first real use."""
+    global _REGISTRY_LOADED
+    if _REGISTRY_LOADED:
+        return
 
-# Apply user TypeRegistration plugins from installed Python packages.
-for _reg in _iter_registrations():  # pragma: no cover
-    _apply_registration(_reg, IO_TYPES, PROG_TYPES, PROTO_TYPES)
+    _DTYPE_MAP_DATA.clear()
+    _DTYPE_MAP_DATA.update(_load_dtype_map())
+    _DTYPE_INITVAL_PARAM_MAP_DATA.clear()
+    _DTYPE_INITVAL_PARAM_MAP_DATA.update(_load_dtype_initval_param_map())
+    _IO_TYPES_DATA.clear()
+    _PROG_TYPES_DATA.clear()
+    _PROTO_TYPES_DATA.clear()
+    _bootstrap_builtin_types()
+
+    # Apply user TypeRegistration plugins from installed Python packages.
+    for reg in _iter_registrations():  # pragma: no cover
+        _apply_registration(
+            reg,
+            _IO_TYPES_DATA,
+            _PROG_TYPES_DATA,
+            _PROTO_TYPES_DATA,
+        )
+
+    _REGISTRY_LOADED = True
+
+
+class _LazyMapping(Mapping[str, _T]):
+    """Read-only mapping proxy that defers registry bootstrapping."""
+
+    def __init__(self, data: dict[str, _T]) -> None:
+        self._data = data
+
+    def _resolve(self) -> dict[str, _T]:
+        _ensure_registry_loaded()
+        return self._data
+
+    def __getitem__(self, key: str) -> _T:
+        return self._resolve()[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._resolve())
+
+    def __len__(self) -> int:
+        return len(self._resolve())
+
+    def __contains__(self, key: object) -> bool:
+        return key in self._resolve()
+
+
+class _LazyMutableMapping(_LazyMapping[_T], MutableMappingABC[str, _T]):
+    """Mutable mapping proxy that defers registry bootstrapping."""
+
+    def __setitem__(self, key: str, value: _T) -> None:
+        self._resolve()[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        del self._resolve()[key]
+
+
+# Export lazy proxies so importing dawnpy.cli.main does not immediately
+# require a Dawn checkout just to parse --help or run init.
+DTYPE_MAP: Mapping[str, str] = _LazyMapping(_DTYPE_MAP_DATA)
+DTYPE_INITVAL_PARAM_MAP: Mapping[str, int] = _LazyMapping(
+    _DTYPE_INITVAL_PARAM_MAP_DATA
+)
+IO_TYPES: MutableMappingABC[str, IOTypeInfo] = _LazyMutableMapping(
+    _IO_TYPES_DATA
+)
+PROG_TYPES: MutableMappingABC[str, ProgTypeInfo] = _LazyMutableMapping(
+    _PROG_TYPES_DATA
+)
+PROTO_TYPES: MutableMappingABC[str, ProtoTypeInfo] = _LazyMutableMapping(
+    _PROTO_TYPES_DATA
+)
 
 
 # --- Path-based loading (no install needed) --------------------------------

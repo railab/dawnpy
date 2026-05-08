@@ -72,7 +72,7 @@ class DescriptorGenerator:
     ) -> ProgramConfigGenerator:
         return ProgramConfigGenerator(
             config_loader=self.config_loader,
-            prog_types=PROG_TYPES,
+            prog_types=dict(PROG_TYPES),
             format_helper=self._format_helper,
         )
 
@@ -81,7 +81,7 @@ class DescriptorGenerator:
     ) -> ProtocolConfigGenerator:
         return ProtocolConfigGenerator.create(
             config_loader=self.config_loader,
-            proto_types=PROTO_TYPES,
+            proto_types=dict(PROTO_TYPES),
             proto_uses_standard_bindings=lambda proto_type: (
                 self._proto_uses_standard_bindings(proto_type)
             ),
