@@ -7,7 +7,23 @@
 
 from unittest.mock import patch
 
+import dawnpy.simple_protocol as simple_protocol_mod
 from dawnpy.simple_protocol import SimpleProtocolBase
+
+
+def test_load_proto_constants_merges_header_values(monkeypatch):
+    monkeypatch.setattr(
+        "dawnpy.headerdefs.load_simple_proto_constants",
+        lambda: {"FRAME_SYNC": 0x55},
+    )
+
+    values = simple_protocol_mod._load_proto_constants()
+
+    assert values["FRAME_SYNC"] == 0x55
+    assert (
+        values["CMD_PING"]
+        == simple_protocol_mod._FALLBACK_CONSTANTS["CMD_PING"]
+    )
 
 
 def test_create_objid_decoder_uses_default_decoder():

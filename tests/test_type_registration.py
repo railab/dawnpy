@@ -30,6 +30,51 @@ from dawnpy.descriptor.definitions.registry import (
 )
 
 
+@pytest.fixture
+def mock_builtin_registry(monkeypatch):
+    """Stub the lazy built-in registry with fixed unit-test entries."""
+    import dawnpy.descriptor.definitions.registry as registry_mod
+
+    def _fake_ensure() -> None:
+        registry_mod._DTYPE_MAP_DATA.clear()
+        registry_mod._DTYPE_MAP_DATA.update(
+            {"uint32": "SObjectId::DTYPE_UINT32"}
+        )
+        registry_mod._DTYPE_INITVAL_PARAM_MAP_DATA.clear()
+        registry_mod._DTYPE_INITVAL_PARAM_MAP_DATA.update({"uint32": 8})
+        registry_mod._IO_TYPES_DATA.clear()
+        registry_mod._IO_TYPES_DATA.update(
+            {
+                "dummy": IOTypeInfo(
+                    cpp_class="CIODummy",
+                    header="dawn/io/dummy.hxx",
+                    helper_func="{cpp_class}::objectId",
+                    params=["dtype", "instance"],
+                )
+            }
+        )
+        registry_mod._PROG_TYPES_DATA.clear()
+        registry_mod._PROG_TYPES_DATA.update(
+            {
+                "sampling": ProgTypeInfo(
+                    cpp_class="CProgSampling",
+                    header="dawn/prog/sampling.hxx",
+                )
+            }
+        )
+        registry_mod._PROTO_TYPES_DATA.clear()
+        registry_mod._PROTO_TYPES_DATA.update(
+            {
+                "shell": ProtoTypeInfo(
+                    cpp_class="CProtoShellPretty",
+                    header="dawn/proto/shell_pretty.hxx",
+                )
+            }
+        )
+
+    monkeypatch.setattr(registry_mod, "_ensure_registry_loaded", _fake_ensure)
+
+
 class TestTypeRegistration:
     """Tests for the TypeRegistration dataclass and merge semantics."""
 
@@ -133,18 +178,18 @@ class TestTypeRegistration:
 class TestBuiltInRegistryStillWorks:
     """Built-in types must resolve after the extension API is in place."""
 
-    def test_builtin_io_dummy_present(self):
+    def test_builtin_io_dummy_present(self, mock_builtin_registry):
         from dawnpy.descriptor.definitions.registry import IO_TYPES
 
         assert "dummy" in IO_TYPES
         assert IO_TYPES["dummy"].cpp_class == "CIODummy"
 
-    def test_builtin_prog_sampling_present(self):
+    def test_builtin_prog_sampling_present(self, mock_builtin_registry):
         from dawnpy.descriptor.definitions.registry import PROG_TYPES
 
         assert "sampling" in PROG_TYPES
 
-    def test_builtin_proto_shell_present(self):
+    def test_builtin_proto_shell_present(self, mock_builtin_registry):
         from dawnpy.descriptor.definitions.registry import PROTO_TYPES
 
         # Built-in shell-pretty proto is exposed under a yaml-friendly name.
@@ -475,13 +520,43 @@ class TestDemoPluginFile:
             types_mod.IO_TYPES.pop(slot_io, None)
             types_mod.PROG_TYPES.pop(slot_prog, None)
 
-    def test_demo_file_loads(self):
-        from dawnpy.dawn.project import Project
+    def test_registration_file_loads_all_type_kinds(self, tmp_path: Path):
+        demo_file = tmp_path / "dawnpy_types.py"
+        demo_file.write_text(
+            """
+from dawnpy.descriptor.definitions.registry import (
+    IOTypeInfo,
+    ProgTypeInfo,
+    ProtoTypeInfo,
+    TypeRegistration,
+)
 
-        repo = Project.resolve().dawn_root
-        demo_file = repo / "examples/out-of-tree-demo/dawnpy_types.py"
-        if not demo_file.exists():  # pragma: no cover
-            pytest.skip("OOT demo not present in this checkout")
+registration = TypeRegistration(
+    name="dawn-oot-demo",
+    io_types={
+        "my_io_dummy": IOTypeInfo(
+            cpp_class="CIOMyDummy",
+            header="my_io_dummy.hxx",
+            helper_func="{cpp_class}::objectId",
+            params=["instance"],
+        ),
+    },
+    prog_types={
+        "my_prog_dummy": ProgTypeInfo(
+            cpp_class="CProgMyDummy",
+            header="my_prog_dummy.hxx",
+        ),
+    },
+    proto_types={
+        "my_proto_dummy": ProtoTypeInfo(
+            cpp_class="CProtoMyDummy",
+            header="my_proto_dummy.hxx",
+        ),
+    },
+)
+""",
+            encoding="utf-8",
+        )
 
         regs = load_registrations_from_path(demo_file)
         assert len(regs) == 1

@@ -66,6 +66,15 @@ def _fake_project(project_root: Path) -> object:
     )
 
 
+def _fake_dawn_root(root: Path) -> Path:
+    (root / "boards").mkdir(parents=True, exist_ok=True)
+    (root / "external" / "nuttx").mkdir(parents=True, exist_ok=True)
+    (root / "external" / "apps").mkdir(parents=True, exist_ok=True)
+    (root / "dawn").mkdir(exist_ok=True)
+    (root / "Documentation").mkdir(exist_ok=True)
+    return root
+
+
 def test_constants_and_output(capsys: pytest.CaptureFixture[str]) -> None:
     output.print_header("Title")
     output.print_success("ok")
@@ -164,6 +173,7 @@ def test_run_build_request_adds_explicit_oot_cmake_file(
 ) -> None:
     oot_root = tmp_path / "oot"
     (oot_root / "boards" / "sim" / "configs" / "demo").mkdir(parents=True)
+    dawn_root = _fake_dawn_root(tmp_path / "dawn")
     cmake_file = oot_root / "external" / "dawn_oot.cmake"
     cmake_file.parent.mkdir(parents=True)
     cmake_file.write_text("# oot\n", encoding="utf-8")
@@ -201,7 +211,7 @@ def test_run_build_request_adds_explicit_oot_cmake_file(
         cmake_defines=(),
         kconfig_overrides=(),
         jobs=None,
-        dawn_root=None,
+        dawn_root=str(dawn_root),
         nuttx_dir=None,
         nuttx_apps_dir=None,
         config_only=True,
@@ -426,6 +436,7 @@ def test_run_build_workflow(
         build_only: bool,
         verbose: bool,
     ) -> None:
+        dawn_root = _fake_dawn_root(tmp_path / "dawn")
         run_build_request(
             BuildRequest(
                 build_dir=build_dir,
@@ -435,7 +446,7 @@ def test_run_build_workflow(
                 cmake_defines=cmake_defines,
                 kconfig_overrides=kconfig_overrides,
                 jobs=jobs,
-                dawn_root=None,
+                dawn_root=str(dawn_root),
                 nuttx_dir=None,
                 nuttx_apps_dir=None,
                 config_only=config_only,
@@ -870,6 +881,10 @@ def test_run_batch_and_kconfig_workflows(
     monkeypatch.setattr(
         "dawnpy.dawn.workflows.build_cmake", lambda *a, **k: True
     )
+    monkeypatch.setattr(
+        "dawnpy.dawn.workflows.Project.resolve",
+        lambda *a, **k: _fake_project(tmp_path),
+    )
 
     with pytest.raises(SystemExit):
         run_batch(
@@ -1001,6 +1016,10 @@ def test_run_batch_request_build_root_relative_to_invocation_dir(
     monkeypatch.setattr(
         "dawnpy.dawn.workflows.build_cmake", lambda *a, **k: True
     )
+    monkeypatch.setattr(
+        "dawnpy.dawn.workflows.Project.resolve",
+        lambda *a, **k: _fake_project(workspace),
+    )
 
     run_batch_request(
         BatchRequest(
@@ -1042,6 +1061,10 @@ def test_run_batch_request_accepts_absolute_build_root(
     )
     monkeypatch.setattr(
         "dawnpy.dawn.workflows.build_cmake", lambda *a, **k: True
+    )
+    monkeypatch.setattr(
+        "dawnpy.dawn.workflows.Project.resolve",
+        lambda *a, **k: _fake_project(workspace),
     )
 
     abs_build_root = tmp_path / "abs-build"

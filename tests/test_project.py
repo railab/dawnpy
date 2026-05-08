@@ -37,8 +37,12 @@ def _mk_oot_root(base: Path, name: str = "fake_oot") -> Path:
 class TestProjectResolveDefault:
     """Tests for Project.resolve() with no explicit path."""
 
-    def test_default_resolution_returns_upstream_dawn(self):
-        """Without a confpath, Project.resolve() finds the real Dawn root."""
+    def test_default_resolution_returns_upstream_dawn(
+        self, tmp_path, monkeypatch
+    ):
+        """Without a confpath, Project.resolve() finds the active Dawn root."""
+        dawn_root = _mk_dawn_root(tmp_path)
+        monkeypatch.chdir(dawn_root)
         project = Project.resolve()
         assert project.project_root == project.dawn_root
         assert project.nuttx_dir == project.dawn_root / "external" / "nuttx"
@@ -52,16 +56,21 @@ class TestProjectResolveFromPath:
 
     def test_intree_path_yields_intree_project(self, tmp_path):
         """A path inside the upstream Dawn repo gives an in-tree Project."""
-        project = Project.resolve(Path(__file__))
+        dawn_root = _mk_dawn_root(tmp_path)
+        src = dawn_root / "tools" / "dawnpy" / "tests" / "test_file.py"
+        src.parent.mkdir(parents=True)
+        src.write_text("# test\n", encoding="utf-8")
+        project = Project.resolve(src)
         assert project.is_oot is False
         assert project.project_root == project.dawn_root
 
     def test_oot_path_yields_oot_project(self, tmp_path):
         """A path inside an OOT project gives an OOT Project."""
         oot_root = _mk_oot_root(tmp_path)
+        dawn_root = _mk_dawn_root(tmp_path)
         confpath = oot_root / "boards" / "sim" / "configs" / "demo"
 
-        project = Project.resolve(confpath)
+        project = Project.resolve(confpath, dawn_root_override=str(dawn_root))
 
         assert project.project_root == oot_root
         assert project.nuttx_dir == project.dawn_root / "external" / "nuttx"
@@ -82,6 +91,20 @@ class TestProjectResolveFromPath:
         assert project.project_root == dawn_root
         assert project.dawn_root == dawn_root
         assert project.nuttx_dir == dawn_root / "external" / "nuttx"
+        assert project.is_oot is False
+
+    def test_dawn_root_override_without_project_root_uses_dawn_root(
+        self, tmp_path
+    ):
+        """An explicit Dawn root is also the project root without OOT hints."""
+        dawn_root = _mk_dawn_root(tmp_path)
+        outside = tmp_path / "outside"
+        outside.mkdir()
+
+        project = Project.resolve(outside, dawn_root_override=str(dawn_root))
+
+        assert project.project_root == dawn_root
+        assert project.dawn_root == dawn_root
         assert project.is_oot is False
 
     def test_dawnrc_can_override_dawn_and_nuttx_paths(
@@ -117,8 +140,10 @@ class TestProjectResolveFromPath:
 class TestProjectCmakeEnv:
     """Tests for Project.cmake_env()."""
 
-    def test_intree_env_lacks_oot_root(self):
+    def test_intree_env_lacks_oot_root(self, tmp_path, monkeypatch):
         """In-tree builds export DAWN_BOARDS_COMMON only."""
+        dawn_root = _mk_dawn_root(tmp_path)
+        monkeypatch.chdir(dawn_root)
         project = Project.resolve()
         env = project.cmake_env()
 
@@ -133,7 +158,10 @@ class TestProjectCmakeEnv:
     def test_oot_env_includes_oot_root(self, tmp_path):
         """OOT builds export DAWN_OOT_ROOT pointing at the project root."""
         oot_root = _mk_oot_root(tmp_path)
-        project = Project.resolve(oot_root / "boards")
+        dawn_root = _mk_dawn_root(tmp_path)
+        project = Project.resolve(
+            oot_root / "boards", dawn_root_override=str(dawn_root)
+        )
 
         env = project.cmake_env()
 
@@ -148,11 +176,14 @@ class TestProjectCmakeEnv:
     def test_oot_env_includes_extension_apps_kconfig(self, tmp_path):
         """OOT builds export an explicit app-extension Kconfig path."""
         oot_root = _mk_oot_root(tmp_path)
+        dawn_root = _mk_dawn_root(tmp_path)
         apps_kconfig = oot_root / "external" / "apps" / "Kconfig"
         apps_kconfig.parent.mkdir(parents=True)
         apps_kconfig.write_text("# apps\n", encoding="utf-8")
 
-        project = Project.resolve(oot_root / "boards")
+        project = Project.resolve(
+            oot_root / "boards", dawn_root_override=str(dawn_root)
+        )
         env = project.cmake_env()
 
         assert env["DAWN_EXTENSION_APPS_KCONFIG"] == str(apps_kconfig)
@@ -160,18 +191,24 @@ class TestProjectCmakeEnv:
     def test_oot_cmake_file_detected_when_present(self, tmp_path):
         """OOT projects may expose an explicit CMake extension entry point."""
         oot_root = _mk_oot_root(tmp_path)
+        dawn_root = _mk_dawn_root(tmp_path)
         cmake_file = oot_root / "external" / "dawn_oot.cmake"
         cmake_file.parent.mkdir(parents=True)
         cmake_file.write_text("# oot\n", encoding="utf-8")
 
-        project = Project.resolve(oot_root / "boards")
+        project = Project.resolve(
+            oot_root / "boards", dawn_root_override=str(dawn_root)
+        )
 
         assert project.oot_cmake_file() == cmake_file
 
     def test_oot_cmake_file_none_when_missing(self, tmp_path):
         """OOT projects without a CMake hook simply omit that cache entry."""
         oot_root = _mk_oot_root(tmp_path)
-        project = Project.resolve(oot_root / "boards")
+        dawn_root = _mk_dawn_root(tmp_path)
+        project = Project.resolve(
+            oot_root / "boards", dawn_root_override=str(dawn_root)
+        )
 
         assert project.oot_cmake_file() is None
 

@@ -69,9 +69,34 @@ class TestDescriptorValidatorInitialization:
             assert "name" in component
             assert "include" in component
 
-    def test_header_component_defs_use_kval_key(self):
+    def test_header_component_defs_use_kval_key(self, monkeypatch):
         """Header-derived component defs should expose include+kval pairs."""
-        data = headerdefs_mod.load_header_component_defs()
+        data = {
+            "ios": [
+                {
+                    "name": "CIODummy",
+                    "include": "dawn/io/dummy.hxx",
+                    "kval": "CONFIG_DAWN_IO_DUMMY",
+                }
+            ],
+            "programs": [
+                {
+                    "name": "CProgSampling",
+                    "include": "dawn/prog/sampling.hxx",
+                    "kval": "CONFIG_DAWN_PROG_SAMPLING",
+                }
+            ],
+            "protocols": [
+                {
+                    "name": "CProtoCan",
+                    "include": "dawn/proto/can.hxx",
+                    "kval": "CONFIG_DAWN_PROTO_CAN",
+                }
+            ],
+        }
+        monkeypatch.setattr(
+            headerdefs_mod, "load_header_component_defs", lambda: data
+        )
 
         for section in ("ios", "programs", "protocols"):
             for item in data.get(section, []):
@@ -81,11 +106,47 @@ class TestDescriptorValidatorInitialization:
                 assert "kval" in item
                 assert str(item["kval"]).startswith("CONFIG_DAWN_")
 
-    def test_header_component_defs_includes_exist(self):
+    def test_header_component_defs_includes_exist(self, monkeypatch, tmp_path):
         """All mapped include paths should exist under dawn/include."""
-        repo_root = headerdefs_mod.find_repo_root()
-        assert repo_root is not None
-        data = headerdefs_mod.load_header_component_defs()
+        repo_root = tmp_path
+        includes = (
+            "dawn/io/dummy.hxx",
+            "dawn/prog/sampling.hxx",
+            "dawn/proto/can.hxx",
+        )
+        for include in includes:
+            target = repo_root / "dawn/include" / include
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("// test\n", encoding="utf-8")
+        data = {
+            "ios": [
+                {
+                    "name": "CIODummy",
+                    "include": "dawn/io/dummy.hxx",
+                    "kval": "CONFIG_DAWN_IO_DUMMY",
+                }
+            ],
+            "programs": [
+                {
+                    "name": "CProgSampling",
+                    "include": "dawn/prog/sampling.hxx",
+                    "kval": "CONFIG_DAWN_PROG_SAMPLING",
+                }
+            ],
+            "protocols": [
+                {
+                    "name": "CProtoCan",
+                    "include": "dawn/proto/can.hxx",
+                    "kval": "CONFIG_DAWN_PROTO_CAN",
+                }
+            ],
+        }
+        monkeypatch.setattr(
+            headerdefs_mod, "find_repo_root", lambda: repo_root
+        )
+        monkeypatch.setattr(
+            headerdefs_mod, "load_header_component_defs", lambda: data
+        )
 
         for section in ("ios", "programs", "protocols"):
             for item in data.get(section, []):

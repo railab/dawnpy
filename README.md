@@ -70,5 +70,13 @@ tox -e flake8
 tox -e type
 ```
 
+Unit tests must be runnable from the standalone `dawnpy` repository without
+the Dawn source tree checked out. Tests that exercise source-backed behavior
+should heavily mock Dawn source discovery and header loading, or build minimal
+fake Dawn source/header layouts inside temporary directories, instead of
+reading real Dawn sources.
+
+## Documentation
+
 See [Dawn Python tooling](https://railab.github.io/dawn/tools/dawnpy.html)
 for the full Dawn Python tooling documentation.

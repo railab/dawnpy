@@ -7,6 +7,7 @@
 
 import importlib
 import struct
+import sys
 import tempfile
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -124,6 +125,30 @@ _COMMAND_IMPORTS = (
     cmd_desc_decode_caps_mod,
     cmd_desc_headers_check_mod,
 )
+
+
+@pytest.fixture
+def mock_header_cfg_id(monkeypatch):
+    """Replace Dawn header cfg-id lookups with fixed unit-test values."""
+    import dawnpy.descriptor.handlers.io_pwm as io_pwm_mod
+
+    mapping = {
+        ("CIOPwm", "cfgIdFreq"): 17,
+        ("CIOCommon", "cfgIdDevno"): 4,
+        ("CIOCommon", "cfgIdNotify"): 5,
+        ("CIOCommon", "cfgIdLimitMin"): 1,
+        ("CIOCommon", "cfgIdLimitMax"): 2,
+        ("CIOCommon", "cfgIdLimitStep"): 3,
+    }
+
+    def _fake(owner: str, method: str) -> int:
+        return mapping[(owner, method)]
+
+    monkeypatch.setattr(io_pwm_mod, "load_header_cfg_id", _fake)
+    monkeypatch.setattr(io_config_mod, "load_header_cfg_id", _fake)
+    monkeypatch.setattr(binary_serializer_mod, "load_header_cfg_id", _fake)
+    monkeypatch.setattr(sys.modules[__name__], "load_header_cfg_id", _fake)
+    return _fake
 
 
 def _proto(
@@ -1493,7 +1518,7 @@ def test_generate_descriptor_binary_dynamic_desc_like():
         assert 77 in words
 
 
-def test_generate_descriptor_binary_pwm_freq_config():
+def test_generate_descriptor_binary_pwm_freq_config(mock_header_cfg_id):
     decoder = ObjectIdDecoder()
     obj = IoObject(
         obj_id="pwm0",
@@ -1544,7 +1569,9 @@ def test_generate_descriptor_binary_pwm_freq_config():
     assert freq_cfg in freq_only_words
 
 
-def test_generate_descriptor_binary_pwm_without_freq_has_no_type_config():
+def test_generate_descriptor_binary_pwm_without_freq_has_no_type_config(
+    mock_header_cfg_id,
+):
     decoder = ObjectIdDecoder()
     obj = IoObject(
         obj_id="pwm0",
@@ -2348,7 +2375,7 @@ def test_io_config_binary_default_param_branch():
     assert isinstance(value, int)
 
 
-def test_io_config_binary_uses_config_io_rw_grant():
+def test_io_config_binary_uses_config_io_rw_grant(mock_header_cfg_id):
     """ConfigIO target cfg-id RW comes from the resolved ConfigIO grant."""
     decoder = ObjectIdDecoder()
     io_dtype_map = {
@@ -2600,11 +2627,10 @@ def test_encode_limit_word_unsupported_dtype_raises():
         _encode_limit_word(0, "block")
 
 
-def test_serialize_io_limits_uint32_emits_three_items():
+def test_serialize_io_limits_uint32_emits_three_items(mock_header_cfg_id):
     from dawnpy.descriptor.encoding.binary_serializer import (
         _append_limits_items,
     )
-    from dawnpy.headerdefs import load_header_cfg_id
 
     items: list[tuple[int, list[int]]] = []
     _append_limits_items(
@@ -2614,9 +2640,9 @@ def test_serialize_io_limits_uint32_emits_three_items():
         dtype_id=8,  # arbitrary id; cfg_id only masks low bits
     )
     assert len(items) == 3
-    cfg_min = load_header_cfg_id("CIOCommon", "cfgIdLimitMin")
-    cfg_max = load_header_cfg_id("CIOCommon", "cfgIdLimitMax")
-    cfg_step = load_header_cfg_id("CIOCommon", "cfgIdLimitStep")
+    cfg_min = mock_header_cfg_id("CIOCommon", "cfgIdLimitMin")
+    cfg_max = mock_header_cfg_id("CIOCommon", "cfgIdLimitMax")
+    cfg_step = mock_header_cfg_id("CIOCommon", "cfgIdLimitStep")
     assert (items[0][0] & 0x1F) == cfg_min
     assert (items[1][0] & 0x1F) == cfg_max
     assert (items[2][0] & 0x1F) == cfg_step
@@ -3388,7 +3414,7 @@ def test_capabilities_decode_command_file():
     assert "Input file not found" in result_bad.output
 
 
-def test_inlined_serializer_registries_bind_yaml_to_cpp_class():
+def test_inlined_serializer_registries_bind_yaml_to_cpp_class(monkeypatch):
     # Every IO yaml-token lives in its own handler under handlers/io_*.py;
     # IO_HANDLER_REGISTRY is the single source of truth.
     from dawnpy.descriptor.handlers import IO_HANDLER_REGISTRY
@@ -3405,11 +3431,21 @@ def test_inlined_serializer_registries_bind_yaml_to_cpp_class():
     assert IO_HANDLER_REGISTRY["leds"].cpp_class == "CIOLeds"
 
     # Every PROG yaml-token lives in its own handler under handlers/prog_*.py.
+    import dawnpy.headerdefs as headerdefs_mod
     from dawnpy.descriptor.handlers import PROG_HANDLER_REGISTRY
-    from dawnpy.headerdefs import load_header_type_defs
 
+    monkeypatch.setattr(
+        headerdefs_mod,
+        "load_header_type_defs",
+        lambda: {
+            "prog_types": [
+                {"yaml_type": name} for name in PROG_HANDLER_REGISTRY
+            ]
+        },
+    )
     prog_yaml_types = {
-        item["yaml_type"] for item in load_header_type_defs()["prog_types"]
+        item["yaml_type"]
+        for item in headerdefs_mod.load_header_type_defs()["prog_types"]
     }
     assert prog_yaml_types == set(PROG_HANDLER_REGISTRY)
 
@@ -3804,14 +3840,14 @@ def test_serialize_io_error_branches(monkeypatch):
     obj_ids = {"dummy0": 0x12345678}
 
     # Branch 1: device-cfg dtype lookup fails inside binary.py.
-    monkeypatch.setattr(
-        binary_serializer_mod,
-        "dtype_id_by_name",
-        lambda *a, **kw: None,
-    )
-    with pytest.raises(click.ClickException, match="device cfg"):
-        _serialize_io_object([], io, dict(obj_ids), decoder)
-    monkeypatch.undo()
+    with pytest.MonkeyPatch.context() as scoped_patch:
+        scoped_patch.setattr(
+            binary_serializer_mod,
+            "dtype_id_by_name",
+            lambda *a, **kw: None,
+        )
+        with pytest.raises(click.ClickException, match="device cfg"):
+            _serialize_io_object([], io, dict(obj_ids), decoder)
 
     # Branch 2: config-reference dtype lookup fails inside io_config
     # handler (the first resolve_dtype call inside io_config.encode_binary).

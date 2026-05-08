@@ -24,6 +24,7 @@ import dawnpy.headerdefs._parser as headerdefs_parser_mod
 import dawnpy.headerdefs._paths as headerdefs_paths_mod
 import dawnpy.headerdefs._typespec as headerdefs_types_mod
 import dawnpy.objectid as objectid_mod
+from dawnpy.sources import DawnSourcesMissing
 
 
 @pytest.fixture(autouse=True)
@@ -38,6 +39,7 @@ def clear_header_caches():
     headerdefs.load_header_cfg_id.cache_clear()
     headerdefs.load_header_object_class_name.cache_clear()
     headerdefs.load_header_enum_value_ids.cache_clear()
+    headerdefs.load_simple_proto_constants.cache_clear()
     yield
     headerdefs.load_header_defs.cache_clear()
     headerdefs.load_header_type_defs.cache_clear()
@@ -48,6 +50,23 @@ def clear_header_caches():
     headerdefs.load_header_cfg_id.cache_clear()
     headerdefs.load_header_object_class_name.cache_clear()
     headerdefs.load_header_enum_value_ids.cache_clear()
+    headerdefs.load_simple_proto_constants.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def block_live_repo_lookup(monkeypatch, request):
+    """Prevent unit tests from discovering the real Dawn checkout."""
+    allowed = {
+        "test_repo_root_from_file_search_path",
+        "test_repo_root_from_cwd_search_path",
+        "test_repo_root_from_nested_layout",
+        "test_repo_root_returns_none_when_all_search_paths_fail",
+        "test_find_repo_root_delegates",
+    }
+    if request.node.name not in allowed:
+        monkeypatch.setattr(
+            headerdefs_paths_mod, "_repo_root_from_here", lambda: None
+        )
 
 
 def test_eval_cpp_int_basic_expression_and_symbols():
@@ -175,7 +194,41 @@ def test_load_header_component_defs_raises_when_empty(monkeypatch):
         headerdefs.load_header_component_defs()
 
 
-def test_load_header_metadata_defs():
+def test_load_header_metadata_defs(monkeypatch):
+    child = SimpleNamespace(
+        **{
+            "type": "type_identifier",
+            "start_byte": 0,
+            "end_byte": 1,
+            "children": [],
+        }
+    )
+    class_node = SimpleNamespace(type="class_specifier", children=[child])
+
+    monkeypatch.setattr(
+        headerdefs_components_mod, "_require_repo_root", lambda: Path("/x")
+    )
+    monkeypatch.setattr(
+        headerdefs_components_mod,
+        "_parse_cpp_header",
+        lambda _h: (b"class CDescriptor {}", object()),
+    )
+    monkeypatch.setattr(
+        headerdefs_components_mod, "_iter_ts_nodes", lambda _r: [class_node]
+    )
+    monkeypatch.setattr(
+        headerdefs_components_mod, "_ts_text", lambda *_a: "CDescriptor"
+    )
+    monkeypatch.setattr(
+        headerdefs_components_mod,
+        "_extract_methods_with_prefixes",
+        lambda *_a: {"cfgIdVersion": [], "cfgIdString": []},
+    )
+    monkeypatch.setattr(
+        headerdefs_components_mod,
+        "_extract_enum_constants_from_tree",
+        lambda *_a: {"DESC_CFG_VERSION": 1, "DESC_CFG_STRING": 2},
+    )
     defs = headerdefs.load_header_metadata_defs()
     assert defs == [
         {
@@ -225,7 +278,34 @@ def test_load_header_metadata_defs_raises_when_missing(monkeypatch):
         headerdefs.load_header_metadata_defs()
 
 
-def test_load_header_nimble_service_defs():
+def test_load_header_nimble_service_defs(monkeypatch):
+    monkeypatch.setattr(
+        headerdefs_nimble_mod, "_require_repo_root", lambda: Path("/x")
+    )
+    monkeypatch.setattr(
+        headerdefs_nimble_mod,
+        "_load_nimble_prph_methods",
+        lambda _r: {
+            "cfgIdIOBindDis": [],
+            "cfgIdIOBindBas": [],
+            "cfgIdIOBindAios": [],
+            "cfgIdIOBindEss": [],
+            "cfgIdIOBindImds": [],
+            "cfgIdIOBindOts": [],
+        },
+    )
+    monkeypatch.setattr(
+        headerdefs_nimble_mod,
+        "_load_nimble_sensor_types",
+        lambda _header, prefix, _cls: (
+            [
+                {"yaml_name": "temperature", "cpp_enum": "X::TEMP"},
+                {"yaml_name": "wind_direction", "cpp_enum": "X::TWINDDIR"},
+            ]
+            if prefix == "PRPH_ESS_TYPE_"
+            else [{"yaml_name": "temperature", "cpp_enum": "X::TEMP"}]
+        ),
+    )
     defs = headerdefs.load_header_nimble_service_defs()
     assert set(defs.keys()) == {"dis", "bas", "aios", "ess", "imds", "ots"}
     assert defs["dis"]["cpp_helper"] == "CProtoNimblePrph::cfgIdIOBindDis"
@@ -278,46 +358,157 @@ def test_load_header_nimble_service_defs_raises_when_empty(monkeypatch):
         headerdefs.load_header_nimble_service_defs()
 
 
-def test_load_header_enum_map_unknown_owner_raises():
+def test_load_header_enum_map_unknown_owner_raises(monkeypatch):
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_enum_header_for_owner", lambda _o: None
+    )
     with pytest.raises(headerdefs.HeaderDefsError, match="enum owner"):
         headerdefs.load_header_enum_map("CProtoNope", "X_")
 
 
-def test_load_header_enum_map_missing_prefix_raises():
+def test_load_header_enum_map_missing_prefix_raises(monkeypatch):
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_enum_header_for_owner", lambda _o: "x.hxx"
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_require_repo_root", lambda: Path("/x")
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_parse_cpp_header",
+        lambda _h: (b"enum {}", object()),
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_enum_constants_from_tree",
+        lambda *_a: {},
+    )
     with pytest.raises(headerdefs.HeaderDefsError, match="No enum constants"):
         headerdefs.load_header_enum_map("CProtoCan", "CAN_TYPE_NOPE_")
 
 
-def test_load_header_enum_value_ids_for_can_contains_aliases():
+def test_load_header_enum_value_ids_for_can_contains_aliases(monkeypatch):
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_enum_header_for_owner", lambda _o: "x.hxx"
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_require_repo_root", lambda: Path("/x")
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_parse_cpp_header",
+        lambda _h: (b"enum {}", object()),
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_enum_constants_from_tree",
+        lambda *_a: {
+            "CAN_TYPE_INDEXED_READ": 5,
+            "CAN_TYPE_INDEXED_WRITE": 6,
+        },
+    )
     values = headerdefs.load_header_enum_value_ids("CProtoCan", "CAN_TYPE_")
     assert values
     assert values["read_indexed"] == values["indexed_read"]
     assert values["write_indexed"] == values["indexed_write"]
 
 
-def test_load_header_enum_value_ids_unknown_owner_raises():
+def test_load_header_enum_value_ids_unknown_owner_raises(monkeypatch):
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_enum_header_for_owner", lambda _o: None
+    )
     with pytest.raises(headerdefs.HeaderDefsError, match="enum owner"):
         headerdefs.load_header_enum_value_ids("CProtoNope", "X_")
 
 
 def test_load_header_enum_value_ids_missing_prefix_raises():
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_enum_header_for_owner", lambda _o: "x.hxx"
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_require_repo_root", lambda: Path("/x")
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_parse_cpp_header",
+        lambda _h: (b"enum {}", object()),
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_enum_constants_from_tree",
+        lambda *_a: {},
+    )
     with pytest.raises(headerdefs.HeaderDefsError, match="No enum constants"):
         headerdefs.load_header_enum_value_ids("CProtoCan", "CAN_TYPE_NOPE_")
+    monkeypatch.undo()
 
 
-def test_load_header_cfg_id_success():
+def test_load_header_cfg_id_success(monkeypatch):
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_enum_header_for_owner", lambda _o: "x.hxx"
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_require_repo_root", lambda: Path("/x")
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_parse_cpp_header",
+        lambda _h: (b"class A{}", object()),
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_class_block",
+        lambda _text, _owner: "class A{}",
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_cfg_enum_from_method_text",
+        lambda _text, _method: "PROTO_CAN_CFG_NODEID",
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_enum_constants_from_tree",
+        lambda *_a: {"PROTO_CAN_CFG_NODEID": 12},
+    )
     val = headerdefs.load_header_cfg_id("CProtoCan", "cfgIdNodeid")
-    assert int(val) >= 0
+    assert val == 12
 
 
-def test_load_header_cfg_id_unknown_owner_raises():
+def test_load_header_cfg_id_unknown_owner_raises(monkeypatch):
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_enum_header_for_owner", lambda _o: None
+    )
     with pytest.raises(headerdefs.HeaderDefsError, match="enum owner"):
         headerdefs.load_header_cfg_id("CProtoNope", "cfgIdNodeid")
 
 
 def test_load_header_cfg_id_missing_method_raises():
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_enum_header_for_owner", lambda _o: "x.hxx"
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_require_repo_root", lambda: Path("/x")
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_parse_cpp_header",
+        lambda _h: (b"class A{}", object()),
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_class_block",
+        lambda _text, _owner: "class A{}",
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_cfg_enum_from_method_text",
+        lambda _text, _method: None,
+    )
     with pytest.raises(headerdefs.HeaderDefsError, match="cfg enum return"):
         headerdefs.load_header_cfg_id("CProtoCan", "cfgIdNope")
+    monkeypatch.undo()
 
 
 def test_extract_class_block_defensive_paths():
@@ -335,6 +526,22 @@ def test_extract_cfg_enum_from_method_text_direct_return():
             class_text, "cfg"
         )
         == "IO_CFG_DEVNO"
+    )
+
+
+def test_extract_cfg_enum_from_method_text_missing_body_returns_none(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_method_body_text",
+        lambda _text, _method: None,
+    )
+    assert (
+        headerdefs_enums_mod._extract_cfg_enum_from_method_text(
+            "class X {}", "cfg"
+        )
+        is None
     )
 
 
@@ -388,14 +595,58 @@ def test_load_header_cfg_id_missing_enum_constant_raises(monkeypatch):
         headerdefs.load_header_cfg_id("CProtoCan", "cfgIdNodeid")
 
 
-def test_load_header_object_class_name_success():
+def test_load_header_object_class_name_success(monkeypatch):
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_enum_header_for_owner", lambda _o: "x.hxx"
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_require_repo_root", lambda: Path("/x")
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_parse_cpp_header",
+        lambda _h: (b"class A{}", object()),
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_class_block",
+        lambda _text, _owner: "class A{}",
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_object_class_enum_from_method_text",
+        lambda _text, _method: "PROTO_CLASS_CAN",
+    )
     name = headerdefs.load_header_object_class_name("CProtoCan", "objectId")
     assert name == "can"
 
 
 def test_load_header_object_class_name_missing_method_raises():
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_enum_header_for_owner", lambda _o: "x.hxx"
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_require_repo_root", lambda: Path("/x")
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_parse_cpp_header",
+        lambda _h: (b"class A{}", object()),
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_class_block",
+        lambda _text, _owner: "class A{}",
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_object_class_enum_from_method_text",
+        lambda _text, _method: None,
+    )
     with pytest.raises(headerdefs.HeaderDefsError, match="class enum return"):
         headerdefs.load_header_object_class_name("CProtoCan", "objectIdNope")
+    monkeypatch.undo()
 
 
 def test_load_header_object_class_name_bad_enum_token_raises(monkeypatch):
@@ -471,6 +722,22 @@ def test_extract_object_class_enum_from_method_text_none_paths():
     )
 
 
+def test_extract_object_class_enum_from_method_text_missing_body_returns_none(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_method_body_text",
+        lambda _text, _method: None,
+    )
+    assert (
+        headerdefs_enums_mod._extract_object_class_enum_from_method_text(
+            "class X {}", "objectId"
+        )
+        is None
+    )
+
+
 def test_extract_method_body_text_defensive_paths():
     no_brace = "class X { int cfg() };"
     assert (
@@ -498,7 +765,10 @@ def test_cfg_id_fallback_headers_io_and_desc(tmp_path):
     )
 
 
-def test_load_header_object_class_name_unknown_owner_raises():
+def test_load_header_object_class_name_unknown_owner_raises(monkeypatch):
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_enum_header_for_owner", lambda _o: None
+    )
     with pytest.raises(headerdefs.HeaderDefsError, match="enum owner"):
         headerdefs.load_header_object_class_name("CProtoNope", "objectId")
 
@@ -525,7 +795,17 @@ def test_load_header_object_class_name_no_class_block_raises(monkeypatch):
 
 
 def test_repo_root_from_file_search_path(monkeypatch, tmp_path):
-    monkeypatch.setattr(headerdefs_paths_mod.Path, "cwd", lambda: tmp_path)
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    repo = tmp_path / "repo"
+    target = repo / "dawn/include/dawn/common"
+    target.mkdir(parents=True)
+    (target / "objectid.hxx").write_text("// test", encoding="utf-8")
+    fake_module = repo / "tools/dawnpy/src/dawnpy/headerdefs/_paths.py"
+    fake_module.parent.mkdir(parents=True)
+    fake_module.write_text("# test\n", encoding="utf-8")
+    monkeypatch.setattr(headerdefs_paths_mod.Path, "cwd", lambda: cwd)
+    monkeypatch.setattr(headerdefs_paths_mod, "__file__", str(fake_module))
     root = headerdefs_paths_mod._repo_root_from_here()
     assert root is not None
     assert (root / "dawn/include/dawn/common/objectid.hxx").exists()
@@ -1168,37 +1448,135 @@ def test_load_header_type_defs_raises_when_proto_types_empty(monkeypatch):
         headerdefs.load_header_type_defs()
 
 
-def test_load_header_defs_has_expected_shape():
+def test_load_header_defs_has_expected_shape(monkeypatch):
+    monkeypatch.setattr(
+        headerdefs_loader_mod, "_require_repo_root", lambda: Path("/x")
+    )
+    monkeypatch.setattr(
+        headerdefs_loader_mod,
+        "_load_header_symbol_sets",
+        lambda _root: (
+            {
+                "PRIV_SHIFT": 0,
+                "PRIV_MAX": 1,
+                "FLAGS_SHIFT": 4,
+                "FLAGS_MAX": 3,
+                "DTYPE_SHIFT": 8,
+                "DTYPE_MAX": 15,
+                "EXT_SHIFT": 12,
+                "EXT_MAX": 1,
+                "CLS_SHIFT": 16,
+                "CLS_MAX": 255,
+                "TYPE_SHIFT": 30,
+                "TYPE_MAX": 3,
+            },
+            {
+                "OBJTYPE_ANY": 0,
+                "OBJTYPE_IO": 1,
+                "OBJTYPE_PROTO": 2,
+                "OBJTYPE_PROG": 3,
+                "DTYPE_UINT32": 8,
+            },
+            {"IO_CLASS_DUMMY": 1},
+            {"PROG_CLASS_SAMPLING": 2},
+            {"PROTO_CLASS_CAN": 3},
+        ),
+    )
     defs = headerdefs.load_header_defs()
     assert "bit_fields" in defs
     assert "object_types" in defs
     assert "dtype" in defs
     assert defs["bit_fields"]["type"]["shift"] == 30
     assert defs["object_types"][1] == "IO"
+    assert defs["dtype"][0]["type"] == "uint32"
 
 
 def test_load_header_defs_root_missing_raises(monkeypatch):
     monkeypatch.setattr(
         headerdefs_paths_mod, "_repo_root_from_here", lambda: None
     )
-    with pytest.raises(headerdefs.HeaderDefsError, match="Could not locate"):
+    with pytest.raises(DawnSourcesMissing):
         headerdefs.load_header_defs()
 
 
-def test_load_header_type_defs_has_expected_keys():
+def test_load_header_type_defs_has_expected_keys(monkeypatch):
+    monkeypatch.setattr(
+        headerdefs_types_mod, "_require_repo_root", lambda: Path("/x")
+    )
+
+    def _fake_collect(
+        _root: Path, *, subdir: str, **_kwargs: object
+    ) -> list[dict[str, object]]:
+        if subdir == "io":
+            return [
+                {
+                    "cpp_class": "CIODummy",
+                    "header": "dawn/io/dummy.hxx",
+                    "methods": {"objectId": ["dtype", "instance"]},
+                }
+            ]
+        if subdir == "prog":
+            return [
+                {
+                    "cpp_class": "CProgSampling",
+                    "header": "dawn/prog/sampling.hxx",
+                    "methods": {},
+                }
+            ]
+        return [
+            {
+                "cpp_class": "CProtoCan",
+                "header": "dawn/proto/can.hxx",
+                "methods": {"objectId": []},
+            }
+        ]
+
+    monkeypatch.setattr(
+        headerdefs_types_mod, "_collect_class_specs", _fake_collect
+    )
     defs = headerdefs.load_header_type_defs()
     assert "io_types" in defs
     assert "prog_types" in defs
     assert "proto_types" in defs
     assert any(item["yaml_type"] == "dummy" for item in defs["io_types"])
+    assert any(item["yaml_type"] == "sampling" for item in defs["prog_types"])
+    assert any(item["yaml_type"] == "can" for item in defs["proto_types"])
 
 
 def test_load_header_type_defs_root_missing_raises(monkeypatch):
     monkeypatch.setattr(
         headerdefs_paths_mod, "_repo_root_from_here", lambda: None
     )
-    with pytest.raises(headerdefs.HeaderDefsError, match="Could not locate"):
+    with pytest.raises(DawnSourcesMissing):
         headerdefs.load_header_type_defs()
+
+
+def test_load_simple_proto_constants(monkeypatch):
+    import dawnpy.headerdefs._simple_proto as headerdefs_simple_proto_mod
+
+    monkeypatch.setattr(
+        headerdefs_simple_proto_mod, "_require_repo_root", lambda: Path("/x")
+    )
+    monkeypatch.setattr(
+        headerdefs_simple_proto_mod,
+        "_parse_cpp_header",
+        lambda _h: (b"constexpr", object()),
+    )
+    monkeypatch.setattr(
+        headerdefs_simple_proto_mod,
+        "_extract_enum_constants_from_tree",
+        lambda *_a: {"CMD_PING": 1, "STATUS_OK": 0},
+    )
+    monkeypatch.setattr(
+        headerdefs_simple_proto_mod,
+        "_extract_constexpr_values_from_tree",
+        lambda *_a: {"FRAME_SYNC": 170, "IGNORED": 9},
+    )
+    assert headerdefs_simple_proto_mod.load_simple_proto_constants() == {
+        "FRAME_SYNC": 170,
+        "CMD_PING": 1,
+        "STATUS_OK": 0,
+    }
 
 
 def test_types_loader_prefers_header_defs(monkeypatch):
@@ -1440,8 +1818,22 @@ def test_objectid_init_raises_when_headers_not_available(monkeypatch):
         objectid_mod.ObjectIdDecoder()
 
 
+def _make_blank_objectid_decoder() -> objectid_mod.ObjectIdDecoder:
+    """Create a decoder instance without bootstrapping live header data."""
+    decoder = objectid_mod.ObjectIdDecoder.__new__(
+        objectid_mod.ObjectIdDecoder
+    )
+    decoder.bit_fields = {}
+    decoder.object_types = {}
+    decoder.dtype_info = {}
+    decoder.io_classes = {}
+    decoder.proto_classes = {}
+    decoder.prog_classes = {}
+    return decoder
+
+
 def test_objectid_load_from_headers_bad_shapes_return_false(monkeypatch):
-    decoder = objectid_mod.ObjectIdDecoder()
+    decoder = _make_blank_objectid_decoder()
     monkeypatch.setattr(
         objectid_mod,
         "load_header_defs",
@@ -1496,13 +1888,13 @@ def test_objectid_load_from_headers_bad_shapes_return_false(monkeypatch):
     ],
 )
 def test_objectid_load_from_headers_shape_guards(monkeypatch, payload):
-    decoder = objectid_mod.ObjectIdDecoder()
+    decoder = _make_blank_objectid_decoder()
     monkeypatch.setattr(objectid_mod, "load_header_defs", lambda: payload)
     assert decoder._load_from_headers() is False
 
 
 def test_objectid_load_from_headers_handles_exception(monkeypatch):
-    decoder = objectid_mod.ObjectIdDecoder()
+    decoder = _make_blank_objectid_decoder()
 
     def _boom():
         raise headerdefs.HeaderDefsError("x")
@@ -1512,7 +1904,7 @@ def test_objectid_load_from_headers_handles_exception(monkeypatch):
 
 
 def test_objectid_load_from_headers_success(monkeypatch):
-    decoder = objectid_mod.ObjectIdDecoder()
+    decoder = _make_blank_objectid_decoder()
     monkeypatch.setattr(
         objectid_mod,
         "load_header_defs",
@@ -1542,3 +1934,372 @@ def test_objectid_load_from_headers_success(monkeypatch):
     assert decoder.TYPE_SHIFT == 30
     assert decoder.object_types[1] == "IO"
     assert decoder.dtype_info[1]["type"] == "bool"
+
+
+def test_source_free_fixture_helpers_cover_error_paths():
+    from tests import conftest as test_fixtures
+
+    assert test_fixtures.minimal_object_class_name("CIODummy", "cfgId") == ""
+    with pytest.raises(headerdefs.HeaderDefsError):
+        test_fixtures.minimal_object_class_name("Nope", "objectId")
+    with pytest.raises(pytest.fail.Exception):
+        test_fixtures.blocked_repo_root_lookup()
+
+
+def test_headerdefs_remaining_branch_coverage(monkeypatch, tmp_path):
+    skipped = SimpleNamespace(type="namespace_definition", children=[])
+    type_child = SimpleNamespace(type="type_identifier")
+    class_node = SimpleNamespace(type="class_specifier", children=[type_child])
+
+    monkeypatch.setattr(headerdefs_components_mod, "_require_repo_root", Path)
+    monkeypatch.setattr(
+        headerdefs_components_mod,
+        "_parse_cpp_header",
+        lambda _path: (b"CDescriptor", object()),
+    )
+    monkeypatch.setattr(
+        headerdefs_components_mod,
+        "_iter_ts_nodes",
+        lambda _root: [skipped, class_node],
+    )
+    monkeypatch.setattr(
+        headerdefs_components_mod,
+        "_ts_text",
+        lambda *_args: "CDescriptor",
+    )
+    monkeypatch.setattr(
+        headerdefs_components_mod,
+        "_extract_methods_with_prefixes",
+        lambda *_args: {"cfgIdVersion": []},
+    )
+    monkeypatch.setattr(
+        headerdefs_components_mod,
+        "_extract_enum_constants_from_tree",
+        lambda *_args: {"DESC_CFG_VERSION": 1},
+    )
+    assert headerdefs.load_header_metadata_defs()[0]["name"] == "version"
+
+    specs = [
+        {
+            "cpp_class": "CIODummy",
+            "header": "dawn/io/dummy.hxx",
+            "yaml_type": "dummy",
+        }
+    ]
+    monkeypatch.setattr(
+        headerdefs_components_mod,
+        "_collect_class_specs",
+        lambda *args, **kwargs: specs if kwargs["subdir"] == "io" else [],
+    )
+    assert (
+        headerdefs.load_header_component_defs()["ios"][0]["name"] == "CIODummy"
+    )
+    assert headerdefs_constants_mod._build_class_map(
+        {
+            "IO_CLASS_ANY": 0,
+            "IO_CLASS_USER_THING": 1,
+            "IO_CLASS_LAST": 2,
+            "IO_CLASS_DUMMY": 3,
+        },
+        prefix="IO_CLASS_",
+    ) == {3: "dummy"}
+
+    assert (
+        headerdefs_enums_mod._enum_key_from_suffix("Other", "VALUE") == "value"
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "load_header_type_defs",
+        lambda: {
+            "io_types": [
+                {"cpp_class": "CIODummy", "header": "dawn/io/dummy.hxx"}
+            ],
+            "prog_types": [],
+            "proto_types": [
+                {"cpp_class": "CProtoCan", "header": "dawn/proto/can/can.hxx"}
+            ],
+        },
+    )
+    assert (
+        headerdefs_enums_mod._enum_header_for_owner("CProtoCan")
+        == "dawn/proto/can/can.hxx"
+    )
+    assert (
+        headerdefs_enums_mod._enum_header_for_owner("CIOCommon")
+        == "dawn/io/common.hxx"
+    )
+    assert headerdefs_enums_mod._enum_header_for_owner("Nope") is None
+    assert (
+        headerdefs_enums_mod._extract_class_block(
+            "class CProtoCan { int nested() { return 1; } };", "CProtoCan"
+        )
+        is not None
+    )
+    assert (
+        headerdefs_enums_mod._extract_object_class_enum_from_method_text(
+            "class C { int objectId() { return IO_CLASS_DUMMY; } };",
+            "objectId",
+        )
+        == "IO_CLASS_DUMMY"
+    )
+    assert (
+        headerdefs_enums_mod._extract_method_body_text(
+            "// objectId() {}\nobjectId() { return X; }", "objectId"
+        ).strip()
+        == "return X;"
+    )
+    assert tmp_path / "dawn/include/dawn/prog/process.hxx" in (
+        headerdefs_enums_mod._cfg_id_fallback_headers(tmp_path, "PROG_CFG_X")
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_parse_cpp_header",
+        lambda _path: (b"", object()),
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_enum_constants_from_tree",
+        lambda *_args: {"DIRECT_ENUM": 9},
+    )
+    assert (
+        headerdefs_enums_mod._lookup_enum_value_in_headers(
+            "DIRECT_ENUM", [tmp_path / "x.hxx"]
+        )
+        == 9
+    )
+
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_enum_header_for_owner",
+        lambda _owner: "dawn/proto/can/can.hxx",
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod, "_require_repo_root", lambda: tmp_path
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_parse_cpp_header",
+        lambda _path: (
+            b"class CProtoCan { int cfg() { return PROTO_CFG_X; } };",
+            object(),
+        ),
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_enum_constants_from_tree",
+        lambda *_args: {
+            "CAN_TYPE_INDEXED_READ": 4,
+            "CAN_TYPE_INDEXED_WRITE": 5,
+        },
+    )
+    values = headerdefs.load_header_enum_map("CProtoCan", "CAN_TYPE_")
+    assert values["indexed_read"] == "INDEXED_READ"
+
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_class_block",
+        lambda *_args: "class CProtoCan {}",
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_cfg_enum_from_method_text",
+        lambda *_args: "PROG_CFG_X",
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_enum_constants_from_tree",
+        lambda *_args: {},
+    )
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_lookup_enum_value_in_headers",
+        lambda enum_name, _headers: 7 if enum_name == "PROG_CFG_X" else None,
+    )
+    assert headerdefs.load_header_cfg_id("CProtoCan", "cfg") == 7
+
+    monkeypatch.setattr(
+        headerdefs_enums_mod,
+        "_extract_object_class_enum_from_method_text",
+        lambda *_args: "PROG_CLASS_STATS_MIN",
+    )
+    assert (
+        headerdefs.load_header_object_class_name("CProtoCan", "objectId")
+        == "stat_min"
+    )
+
+    assert (
+        headerdefs_nimble_mod._nimble_sensor_yaml_name("TEMP") == "temperature"
+    )
+    assert headerdefs_nimble_mod._nimble_sensor_yaml_name("CUSTOM") == "custom"
+    monkeypatch.setattr(
+        headerdefs_nimble_mod,
+        "_parse_cpp_header",
+        lambda _path: (b"", object()),
+    )
+    monkeypatch.setattr(
+        headerdefs_nimble_mod,
+        "_extract_enum_constants_from_tree",
+        lambda *_args: {
+            "PRPH_ESS_TYPE_TEMP": 1,
+            "PRPH_ESS_TYPE_HUM": 2,
+        },
+    )
+    assert (
+        headerdefs_nimble_mod._load_nimble_sensor_types(
+            tmp_path / "x.hxx", "PRPH_ESS_TYPE_", "CProtoNimblePrphEss"
+        )[0]["yaml_name"]
+        == "temperature"
+    )
+
+    monkeypatch.setattr(
+        headerdefs_nimble_mod,
+        "_iter_ts_nodes",
+        lambda _root: [skipped, class_node],
+    )
+    monkeypatch.setattr(
+        headerdefs_nimble_mod, "_ts_text", lambda *_args: "CProtoNimblePrph"
+    )
+    monkeypatch.setattr(
+        headerdefs_nimble_mod,
+        "_extract_methods_with_prefixes",
+        lambda *_args: {"cfgIdIOBindBas": []},
+    )
+    assert headerdefs_nimble_mod._load_nimble_prph_methods(tmp_path) == {
+        "cfgIdIOBindBas": []
+    }
+
+    bad_field = SimpleNamespace(type="field_declaration")
+    monkeypatch.setattr(
+        headerdefs_parser_mod,
+        "_iter_ts_nodes",
+        lambda _root: [bad_field],
+    )
+    monkeypatch.setattr(
+        headerdefs_parser_mod,
+        "_is_constexpr_static_field",
+        lambda *_args: True,
+    )
+    monkeypatch.setattr(
+        headerdefs_parser_mod,
+        "_field_name_and_expr",
+        lambda *_args: ("bad-name", "1"),
+    )
+    assert (
+        headerdefs_parser_mod._extract_constexpr_values_from_tree(
+            b"", object()
+        )
+        == {}
+    )
+
+    bad_enum = SimpleNamespace(type="enumerator")
+    monkeypatch.setattr(
+        headerdefs_parser_mod,
+        "_iter_ts_nodes",
+        lambda _root: [bad_enum],
+    )
+    monkeypatch.setattr(
+        headerdefs_parser_mod,
+        "_enumerator_name_and_expr",
+        lambda *_args: ("TEST_A", ""),
+    )
+    assert headerdefs_parser_mod._extract_enum_constants_from_tree(
+        b"", object(), ("TEST_",)
+    ) == {"TEST_A": 0}
+
+
+def test_header_type_defs_parse_fake_headers(monkeypatch, tmp_path):
+    root = tmp_path / "repo"
+    include = root / "dawn/include/dawn"
+    (include / "io").mkdir(parents=True)
+    (include / "prog").mkdir()
+    (include / "proto/can").mkdir(parents=True)
+    (include / "io/.#ignored.hxx").write_text("bad", encoding="utf-8")
+    (include / "io/dummy.hxx").write_text(
+        "class CIODummy { public: static int objectId(int dtype, int id)"
+        " { return 0; } };",
+        encoding="utf-8",
+    )
+    (include / "io/dac.hxx").write_text(
+        "class CIODac { public: static int objectId(int ts, int id)"
+        " { return 0; } };",
+        encoding="utf-8",
+    )
+    (include / "io/sensor.hxx").write_text(
+        "class CIOSensor { public:"
+        " static int objectIdTemp(int dtype, int ts, int id) { return 0; }"
+        " static int objectIdHum(int dtype, int ts, int id) { return 0; }"
+        " };",
+        encoding="utf-8",
+    )
+    (include / "io/sysinfo.hxx").write_text(
+        "class CIOSysinfo { public: static int objectIdUptime()"
+        " { return 0; } };",
+        encoding="utf-8",
+    )
+    (include / "io/unused.hxx").write_text(
+        "class Other { public: static int objectId() { return 0; } };"
+        " class CIOEmpty {};",
+        encoding="utf-8",
+    )
+    (include / "prog/sampling.hxx").write_text(
+        "class CProgCommon {}; class CProgSampling {};",
+        encoding="utf-8",
+    )
+    (include / "proto/can/can.hxx").write_text(
+        "class CProtoCan { public: static int objectId() { return 0; } };",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        headerdefs_types_mod, "_require_repo_root", lambda: root
+    )
+    defs = headerdefs.load_header_type_defs()
+
+    io_by_type = {item["yaml_type"]: item for item in defs["io_types"]}
+    assert io_by_type["dummy"]["params"] == ["dtype", "instance"]
+    assert io_by_type["dac"]["params"] == ["dtype", "timestamp", "instance"]
+    assert io_by_type["sensor"]["subtypes"] == ["hum", "temp"]
+    assert io_by_type["sysinfo"]["variants"][0]["name"] == "uptime"
+    assert any(item["yaml_type"] == "sampling" for item in defs["prog_types"])
+    assert any(item["yaml_type"] == "can" for item in defs["proto_types"])
+    assert (
+        headerdefs_types_mod._build_prog_type_spec(
+            {"cpp_class": "CProgCommon", "header": "dawn/prog/common.hxx"}
+        )
+        == {}
+    )
+
+
+def test_remaining_standalone_coverage_branches(monkeypatch):
+    node = SimpleNamespace(type="field_declaration", children=[])
+    assert (
+        headerdefs_types_mod._parse_function_name_and_params(node, b"") is None
+    )
+    nameless_declarator = SimpleNamespace(
+        type="function_declarator", children=[]
+    )
+    nameless_field = SimpleNamespace(
+        type="field_declaration", children=[nameless_declarator]
+    )
+    assert (
+        headerdefs_types_mod._parse_function_name_and_params(
+            nameless_field, b""
+        )
+        is None
+    )
+    assert (
+        headerdefs_types_mod._extract_methods_with_prefixes(
+            nameless_field, b"", ("objectId",)
+        )
+        == {}
+    )
+    assert headerdefs_parser_mod._is_constexpr_static_field(node, b"") is False
+    monkeypatch.setattr(
+        headerdefs_paths_mod, "_repo_root_from_here", lambda: None
+    )
+    with pytest.raises(DawnSourcesMissing):
+        headerdefs_paths_mod._require_repo_root()
+    monkeypatch.setattr(
+        headerdefs_paths_mod, "_repo_root_from_here", lambda: Path("/x")
+    )
+    assert headerdefs_paths_mod._require_repo_root() == Path("/x")
