@@ -34,7 +34,7 @@ from dawnpy.dawn.workspace_init import InitRequest, run_init_request
 @click.option(
     "--dawn-source",
     type=click.Choice(["release", "git"], case_sensitive=False),
-    default="release",
+    default="git",
     show_default=True,
 )
 @click.option("--with-nuttx/--no-nuttx", default=True, show_default=True)
