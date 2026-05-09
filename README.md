@@ -21,6 +21,14 @@ Transport clients and the project QA runner are split into separate packages:
 
 ## Install
 
+Dawnpy can be installed by running `pip install dawnpy`.
+
+To install latest development version, use:
+
+`pip install git+https://github.com/railab/dawnpy.git`
+
+Or install directly from Dawn project sources:
+
 ```sh
 cd tools/dawnpy
 pip install -e .
