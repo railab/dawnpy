@@ -50,8 +50,8 @@ def test_init_workspace_bootstraps_sources_only(
     monkeypatch.setattr(workspace_init_mod, "_clone_git", fake_clone_git)
     monkeypatch.setattr(
         workspace_init_mod,
-        "_resolve_latest_release_tag",
-        lambda repo_url: "v1.2.3",
+        "_resolve_default_branch",
+        lambda repo_url: "master",
     )
 
     runner = CliRunner()
@@ -81,8 +81,8 @@ def test_init_can_write_global_dawnrc(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(workspace_init_mod, "_clone_git", fake_clone_git)
     monkeypatch.setattr(
         workspace_init_mod,
-        "_resolve_latest_release_tag",
-        lambda repo_url: "v1.2.3",
+        "_resolve_default_branch",
+        lambda repo_url: "master",
     )
 
     runner = CliRunner()
@@ -457,7 +457,10 @@ def test_init_reports_missing_latest_release(
     )
 
     runner = CliRunner()
-    result = runner.invoke(cmd_init, [str(tmp_path / "ws")])
+    result = runner.invoke(
+        cmd_init,
+        [str(tmp_path / "ws"), "--dawn-source", "release"],
+    )
 
     assert result.exit_code != 0
     assert "has no GitHub latest release" in result.output
