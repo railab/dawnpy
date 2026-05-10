@@ -8,8 +8,8 @@
 import pytest
 
 from dawnpy.descriptor.generation.generator import DescriptorGenerator
-from tests.descriptor.descriptor_helpers import generate_from_spec
 from tests.descriptor.handlers.helpers import to_io_obj
+from tests.descriptor.helpers import generate_from_spec
 
 pytestmark = pytest.mark.usefixtures("source_free_headers")
 
