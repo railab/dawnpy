@@ -11,7 +11,7 @@ from dawnpy.descriptor.config_access import build_config_rw_grants
 from dawnpy.descriptor.definitions.objects import IoObject, ProgramObject
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.generation.generator import DescriptorGenerator
-from tests.descriptor.descriptor_helpers import generate_from_spec
+from tests.descriptor.helpers import generate_from_spec
 
 pytestmark = pytest.mark.usefixtures("source_free_headers")
 

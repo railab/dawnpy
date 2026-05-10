@@ -10,7 +10,7 @@ import pytest
 from dawnpy.descriptor.definitions.objects import ProgramObject
 from dawnpy.descriptor.definitions.registry import PROG_TYPES
 from dawnpy.descriptor.generation.prog import ProgramConfigGenerator
-from tests.descriptor.descriptor_helpers import generate_from_spec
+from tests.descriptor.helpers import generate_from_spec
 
 pytestmark = pytest.mark.usefixtures("source_free_headers")
 
