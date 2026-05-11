@@ -58,6 +58,10 @@ _IO_EXTRA = {
         "helper_func": "{cpp_class}::objectId{subtype}",
         "subtypes": ["temp", "accel", "gyro", "mag", "press", "humi", "hum"],
     },
+    "sensor_producer": {
+        "helper_func": "{cpp_class}::objectId{subtype}",
+        "subtypes": ["temp", "accel", "gyro", "mag", "baro", "hum", "atemp"],
+    },
     "sysinfo": {
         "helper_func": "{cpp_class}::objectId{variant}",
         "params": [],
@@ -142,6 +146,10 @@ def _sensor_class(subtype: str) -> str:
     return f"sensor_{_SENSOR_SUFFIXES.get(subtype, subtype)}"
 
 
+def _sensor_producer_class(subtype: str) -> str:
+    return f"sensor_producer_{_SENSOR_SUFFIXES.get(subtype, subtype)}"
+
+
 def _io_variant_class(io_type: str, variant: object) -> str | None:
     variant_name = str(variant)
     if io_type == "sysinfo":
@@ -163,10 +171,16 @@ def _io_class_names(
     for entry in type_defs["io_types"]:
         yaml_type = str(entry["yaml_type"])
         names.append(_IO_CLASS_ALIASES.get(yaml_type, yaml_type))
-        names.extend(
-            _sensor_class(str(subtype))
-            for subtype in entry.get("subtypes", [])
-        )
+        if yaml_type == "sensor_producer":
+            names.extend(
+                _sensor_producer_class(str(subtype))
+                for subtype in entry.get("subtypes", [])
+            )
+        else:
+            names.extend(
+                _sensor_class(str(subtype))
+                for subtype in entry.get("subtypes", [])
+            )
         names.extend(
             _io_variant_class(yaml_type, variant.get("name"))
             for variant in entry.get("variants", [])

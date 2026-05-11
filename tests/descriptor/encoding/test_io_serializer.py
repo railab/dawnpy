@@ -810,6 +810,9 @@ def test_io_class_name_resolution_via_headerdefs():
     assert _io_class_name(_mk_io("sensor", subtype="temp")) == (
         "sensor_temperature"
     )
+    assert _io_class_name(_mk_io("sensor_producer", subtype="temp")) == (
+        "sensor_producer_temperature"
+    )
     # System IOs resolve via CIOSysinfo / CIOUname / CIOBoardctl variants.
     assert _io_class_name(_mk_io("sysinfo", variant="uptime")) == (
         "system_uptime"

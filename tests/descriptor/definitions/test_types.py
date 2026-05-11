@@ -258,6 +258,34 @@ class TestGetIOHelperCall:
         assert "objectIdTemp" in call
         assert "DTYPE_FLOAT" in call
 
+    def test_sensor_producer_with_subtype(self):
+        """Test sensor producer IO with subtype."""
+        cpp_class, call = get_io_helper_call(
+            io_type="sensor_producer",
+            subtype="temp",
+            variant=None,
+            dtype="float",
+            instance=10,
+            flags={"timestamp": False},
+        )
+        assert cpp_class == "CIOSensorProducer"
+        assert "objectIdTemp" in call
+        assert "DTYPE_FLOAT" in call
+
+    def test_sensor_producer_with_atemp_subtype(self):
+        """Test sensor producer ambient-temperature helper capitalization."""
+        cpp_class, call = get_io_helper_call(
+            io_type="sensor_producer",
+            subtype="atemp",
+            variant=None,
+            dtype="float",
+            instance=10,
+            flags={"timestamp": False},
+        )
+        assert cpp_class == "CIOSensorProducer"
+        assert "objectIdAtemp" in call
+        assert "DTYPE_FLOAT" in call
+
     def test_sysinfo_uptime_variant(self):
         """Test sysinfo IO with uptime variant."""
         cpp_class, call = get_io_helper_call(

@@ -399,7 +399,7 @@ class DescriptorValidator:
             if dtype_errors:
                 continue
 
-            if io.get("type") == "sensor":
+            if io.get("type") in ("sensor", "sensor_producer"):
                 errors.extend(
                     self._validate_sensor_yaml_dtype(
                         io_id, dtype_name, yaml_path, enabled_configs
