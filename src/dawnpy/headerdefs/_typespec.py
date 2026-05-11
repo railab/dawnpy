@@ -209,7 +209,7 @@ def _build_io_type_spec(item: dict[str, Any]) -> dict[str, Any]:
         "cpp_class": cpp_class,
         "header": str(item["header"]),
     }
-    if yaml_type == "sensor" and suffixes:
+    if yaml_type in ("sensor", "sensor_producer") and suffixes:
         first = methods.get(f"objectId{suffixes[0]}", [])
         entry["helper_func"] = "{cpp_class}::objectId{subtype}"
         entry["params"] = _normalize_io_params(list(first), yaml_type)

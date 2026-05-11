@@ -382,8 +382,9 @@ def get_io_helper_call(
         helper = info.helper_func.format(cpp_class=cpp_class)
         return cpp_class, f"{helper}({timestamp}, {instance})"
 
-    elif io_type == "sensor" and subtype:
-        # Sensor uses subtype-specific helper: CIOSensor::objectIdTemp
+    elif io_type in ("sensor", "sensor_producer") and subtype:
+        # Sensor-like IOs use subtype-specific helpers:
+        # CIOSensor::objectIdTemp / CIOSensorProducer::objectIdTemp.
         subtype_cap = subtype.capitalize()
         helper = info.helper_func.format(
             cpp_class=cpp_class, subtype=subtype_cap

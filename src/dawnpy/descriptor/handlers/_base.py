@@ -585,10 +585,13 @@ def _default_io_class_name(
     io_type: str, subtype: str | None, variant: object | None
 ) -> str | None:
     """Return default ObjectID class name for an IO token."""
-    if io_type == "sensor":
+    if io_type in ("sensor", "sensor_producer"):
         if not subtype:
             return None
-        return f"sensor_{_sensor_summary_suffix(subtype)}"
+        suffix = _sensor_summary_suffix(subtype)
+        if io_type == "sensor_producer":
+            return f"sensor_producer_{suffix}"
+        return f"sensor_{suffix}"
     if io_type in ("sysinfo", "uname", "boardctl"):
         return _variant_io_class_name(io_type, variant)
     return _IO_CLASS_OVERRIDES.get(io_type, io_type)

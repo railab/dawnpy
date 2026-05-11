@@ -696,6 +696,31 @@ ios:
         assert "CIOSensor::objectIdTemp" in cpp_code
         assert "DTYPE_FLOAT" in cpp_code
 
+    def test_sensor_producer_io_generation(self, tmp_path):
+        """Test sensor producer IO with subtype and queue config."""
+        yaml_content = """
+ios:
+  - id: temp_sensor_out
+    type: sensor_producer
+    subtype: temp
+    instance: 10
+    dtype: float
+    config:
+      device: 10
+      queue_size: 4
+      persist: true
+"""
+        yaml_file = tmp_path / "test.yaml"
+        yaml_file.write_text(yaml_content)
+
+        generator = DescriptorGenerator()
+        cpp_code = generator.generate(str(yaml_file))
+
+        assert "CIOSensorProducer::objectIdTemp" in cpp_code
+        assert "CIOSensorProducer::cfgIdQueueSize" in cpp_code
+        assert "CIOSensorProducer::cfgIdPersist" in cpp_code
+        assert "DTYPE_FLOAT" in cpp_code
+
     def test_variant_io_generation(self, tmp_path):
         """Test IO with variant (sysinfo)."""
         yaml_content = """
