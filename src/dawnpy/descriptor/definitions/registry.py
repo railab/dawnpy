@@ -374,6 +374,7 @@ def get_io_helper_call(
         "adc_stream",
         "dac",
         "leds",
+        "rgb_led",
         "buttons",
         "pwm",
     ]:

@@ -21,6 +21,7 @@ def test_inlined_serializer_registries_bind_yaml_to_cpp_class(monkeypatch):
     assert IO_HANDLER_REGISTRY["fileio"].cpp_class == "CIOFile"
     assert IO_HANDLER_REGISTRY["pwm"].cpp_class == "CIOPwm"
     assert IO_HANDLER_REGISTRY["leds"].cpp_class == "CIOLeds"
+    assert IO_HANDLER_REGISTRY["rgb_led"].cpp_class == "CIORgbLed"
 
     # Every PROG yaml-token lives in its own handler under handlers/prog_*.py.
     import dawnpy.headerdefs as headerdefs_mod

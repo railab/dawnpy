@@ -358,15 +358,30 @@ def test_serialize_io_extended_supported_types():
         subtype=None,
         variant=None,
     )
+    rgbled = IoObject(
+        obj_id="rgbled0",
+        io_type="rgb_led",
+        instance=0,
+        dtype="uint32",
+        tags=[],
+        config={"device": 0, "init_val": 0x112233},
+        timestamp=False,
+        notify=False,
+        rw=True,
+        subtype=None,
+        variant=None,
+    )
 
     _serialize_io_object(words, dummy_notify, obj_ids, decoder)
     _serialize_io_object(words, timestamp, obj_ids, decoder)
     _serialize_io_object(words, fileio, obj_ids, decoder)
     _serialize_io_object(words, gpi, obj_ids, decoder)
+    _serialize_io_object(words, rgbled, obj_ids, decoder)
     assert obj_ids["dn0"] != 0
     assert obj_ids["ts0"] != 0
     assert obj_ids["f0"] != 0
     assert obj_ids["gpi0"] != 0
+    assert obj_ids["rgbled0"] != 0
 
 
 def test_serialize_io_encoder_emits_posmax():
