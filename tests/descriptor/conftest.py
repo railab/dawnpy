@@ -45,6 +45,7 @@ _IO_PARAM_OVERRIDES = {
     "adc_stream": ["timestamp", "instance"],
     "dac": ["timestamp", "instance"],
     "leds": ["timestamp", "instance"],
+    "rgb_led": ["timestamp", "instance"],
     "buttons": ["timestamp", "instance"],
     "pwm": ["timestamp", "instance"],
     "gpi": ["notify", "instance"],
@@ -85,6 +86,7 @@ _IO_EXTRA = {
 }
 
 _IO_CLASS_ALIASES = {
+    "rgb_led": "rgbled",
     "descselector": "desc_selector",
     "fileio": "file",
     "gpi": "gpi_single",
@@ -375,6 +377,7 @@ def minimal_component_defs() -> dict[str, list[dict[str, str]]]:
                 "CONFIG_DAWN_IO_CAPABILITIES",
             ),
             ("CIOPwm", "dawn/io/pwm.hxx", "CONFIG_DAWN_IO_PWM"),
+            ("CIORgbLed", "dawn/io/rgbled.hxx", "CONFIG_DAWN_IO_RGB_LED"),
         ],
         "programs": [
             (

@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from dawnpy.objectid import ObjectIdDecoder
 
 _IO_CLASS_OVERRIDES: dict[str, str] = {
+    "rgb_led": "rgbled",
     "gpi": "gpi_single",
     "gpo": "gpo_single",
     "uuid": "system_uuid",
