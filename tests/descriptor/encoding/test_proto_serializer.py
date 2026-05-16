@@ -6,6 +6,18 @@
 from tests.descriptor.cmd_descriptor_context import *
 
 
+def _cfg_item_data(words: list[int]) -> list[list[int]]:
+    items: list[list[int]] = []
+    idx = 2
+    for _ in range(words[1]):
+        cfgid = words[idx]
+        size = (cfgid >> 5) & 0x3FF
+        idx += 1
+        items.append(words[idx : idx + size])
+        idx += size
+    return items
+
+
 def test_serialize_proto_shell_path_prompt_and_bindings():
     decoder = ObjectIdDecoder()
     obj_ids = {"dummy0": 0x11111111}
@@ -495,6 +507,216 @@ def test_serialize_proto_error_branches(monkeypatch):
             {},
             decoder,
         )
+
+
+def test_serialize_proto_wakaama_standard_and_custom_objects():
+    decoder = ObjectIdDecoder()
+    obj_ids = {
+        "temp": 0x10000001,
+        "counter": 0x10000002,
+        "numeric": 0x10000003,
+    }
+    words: list[int] = []
+
+    proto = ProtocolObject(
+        obj_id="lwm2m0",
+        proto_type="wakaama",
+        instance=0,
+        config={
+            "endpoint": "ntfc",
+            "server_host": "127.0.0.1",
+            "server_port": 5683,
+            "local_port": 56830,
+            "lifetime": 60,
+            "device": {
+                "manufacturer": "Dawn",
+                "model_number": "qemu-intel64",
+                "serial_number": "dawn-wakaama",
+                "firmware_version": "0.1",
+            },
+            "objects": [
+                {
+                    "object": "temperature",
+                    "instance": 2,
+                    "resources": [
+                        {
+                            "resource": "sensor_value",
+                            "io": {"id": "temp"},
+                            "access": "read",
+                        }
+                    ],
+                },
+                {
+                    "object_id": 33000,
+                    "instance": 1,
+                    "resources": [
+                        {
+                            "resource_id": 7,
+                            "io": "counter",
+                            "access": "rw",
+                        }
+                    ],
+                },
+                {
+                    "object": 33000,
+                    "instance": 0,
+                    "resources": [
+                        {
+                            "resource": 7,
+                            "io": "numeric",
+                            "access": "rw",
+                        }
+                    ],
+                },
+            ],
+        },
+        bindings=[],
+    )
+
+    serialize_proto_object(words, proto, obj_ids, decoder)
+    data_items = _cfg_item_data(words)
+
+    assert obj_ids["lwm2m0"] != 0
+    assert words[1] == 12
+    assert [0x00020000, 0x00010000, 0x10000001] in data_items
+    assert [0x000180E8, 0x00030007, 0x10000002] in data_items
+    assert [0x000080E8, 0x00030007, 0x10000003] in data_items
+
+
+def test_serialize_proto_wakaama_multi_server():
+    decoder = ObjectIdDecoder()
+    obj_ids: dict[str, int] = {}
+    words: list[int] = []
+
+    proto = ProtocolObject(
+        obj_id="lwm2m0",
+        proto_type="wakaama",
+        instance=0,
+        config={
+            "endpoint": "ntfc",
+            "local_port": 56830,
+            "lifetime": 60,
+            "servers": [
+                {"port": 5683, "lifetime": 60, "short_server_id": 123},
+                {
+                    "host": "192.0.2.1",
+                    "port": 5684,
+                    "lifetime": 120,
+                    "short_server_id": 124,
+                    "security_instance": 4,
+                    "server_instance": 5,
+                },
+            ],
+        },
+        bindings=[],
+    )
+
+    serialize_proto_object(words, proto, obj_ids, decoder)
+    data_items = _cfg_item_data(words)
+
+    assert words[1] == 4
+    assert [0x00000000, 0x007B1633, 0x0000003C] in data_items
+    assert any(
+        item[:3] == [0x00040005, 0x007C1634, 0x00000078] for item in data_items
+    )
+
+
+def test_serialize_proto_wakaama_secure_bootstrap_server():
+    decoder = ObjectIdDecoder()
+    obj_ids: dict[str, int] = {}
+    words: list[int] = []
+
+    proto = ProtocolObject(
+        obj_id="lwm2m0",
+        proto_type="wakaama",
+        instance=0,
+        config={
+            "endpoint": "ntfc",
+            "local_port": 56830,
+            "servers": [
+                {
+                    "host": "192.0.2.2",
+                    "port": 5684,
+                    "scheme": "coaps",
+                    "security_mode": "psk",
+                    "psk_identity": "client",
+                    "psk_key": "01020304",
+                    "bootstrap": True,
+                    "holdoff": 5,
+                    "bootstrap_timeout": 30,
+                    "security_instance": 2,
+                },
+            ],
+        },
+        bindings=[],
+    )
+
+    serialize_proto_object(words, proto, obj_ids, decoder)
+    data_items = _cfg_item_data(words)
+
+    assert words[1] == 3
+    assert any(
+        item[:10]
+        == [
+            0x00020000,
+            0x00001634,
+            0x00000000,
+            0x574B4131,
+            0x00010001,
+            0x00000005,
+            0x0000001E,
+            0x00000004,
+            0x00000004,
+            0x00000004,
+        ]
+        for item in data_items
+    )
+
+
+def test_serialize_proto_wakaama_ignores_malformed_objects():
+    decoder = ObjectIdDecoder()
+    obj_ids: dict[str, int] = {}
+
+    bad_objects: list[int] = []
+    serialize_proto_object(
+        bad_objects,
+        ProtocolObject(
+            obj_id="lwm2m0",
+            proto_type="wakaama",
+            instance=0,
+            config={"objects": {}},
+            bindings=[],
+        ),
+        obj_ids,
+        decoder,
+    )
+    assert bad_objects[1] == 0
+
+    malformed: list[int] = []
+    serialize_proto_object(
+        malformed,
+        ProtocolObject(
+            obj_id="lwm2m1",
+            proto_type="wakaama",
+            instance=1,
+            config={
+                "objects": [
+                    {"object_id": 42, "resources": "bad"},
+                    {
+                        "object": "temperature",
+                        "resources": [
+                            1,
+                            {"resource_id": 8},
+                        ],
+                    },
+                ]
+            },
+            bindings=[],
+        ),
+        obj_ids,
+        decoder,
+    )
+    assert malformed[1] == 0
 
 
 def test_serialize_proto_non_dict_cfg_sections(monkeypatch):

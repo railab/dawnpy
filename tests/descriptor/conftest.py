@@ -133,6 +133,7 @@ _PROTO_HEADERS = {
     "nxscope_udp": "dawn/proto/nxscope/udp.hxx",
     "serial": "dawn/proto/serial/simple.hxx",
     "shell": "dawn/proto/shell/pretty.hxx",
+    "wakaama": "dawn/proto/wakaama/wakaama.hxx",
 }
 
 
@@ -513,6 +514,52 @@ def minimal_enum_map(owner: str, enum_prefix: str) -> dict[str, str]:
             "uint16": "UINT16",
             "float": "FLOAT",
         },
+        ("CProtoWakaama", "WAKAAMA_OBJECT_"): {
+            "temperature": "TEMPERATURE",
+            "humidity": "HUMIDITY",
+            "pressure": "PRESSURE",
+            "light": "LIGHT",
+            "actuation": "ACTUATION",
+            "binary_app_data_container": "BINARY_APP_DATA_CONTAINER",
+            "device": "DEVICE",
+            "connectivity_monitoring": "CONNECTIVITY_MONITORING",
+            "firmware_update": "FIRMWARE_UPDATE",
+            "software_management": "SOFTWARE_MANAGEMENT",
+            "cellular_connectivity": "CELLULAR_CONNECTIVITY",
+            "digital_input": "DIGITAL_INPUT",
+            "digital_output": "DIGITAL_OUTPUT",
+            "analog_input": "ANALOG_INPUT",
+            "analog_output": "ANALOG_OUTPUT",
+            "generic_sensor": "GENERIC_SENSOR",
+            "illuminance": "ILLUMINANCE",
+            "light_control": "LIGHT_CONTROL",
+            "accelerometer": "ACCELEROMETER",
+            "magnetometer": "MAGNETOMETER",
+            "barometer": "BAROMETER",
+            "voltage": "VOLTAGE",
+            "current": "CURRENT",
+            "gyrometer": "GYROMETER",
+        },
+        ("CProtoWakaama", "WAKAAMA_RESOURCE_"): {
+            "sensor_value": "SENSOR_VALUE",
+            "units": "UNITS",
+            "min_measured_value": "MIN_MEASURED_VALUE",
+            "max_measured_value": "MAX_MEASURED_VALUE",
+            "on_off": "ON_OFF",
+            "dimmer": "DIMMER",
+            "binary_app_data": "BINARY_APP_DATA",
+            "firmware_package": "FIRMWARE_PACKAGE",
+            "firmware_state": "FIRMWARE_STATE",
+            "firmware_update_result": "FIRMWARE_UPDATE_RESULT",
+            "digital_input_state": "DIGITAL_INPUT_STATE",
+            "digital_output_state": "DIGITAL_OUTPUT_STATE",
+            "analog_input_current_value": "ANALOG_INPUT_CURRENT_VALUE",
+            "analog_output_current_value": "ANALOG_OUTPUT_CURRENT_VALUE",
+            "sensor_units": "SENSOR_UNITS",
+            "min_range_value": "MIN_RANGE_VALUE",
+            "max_range_value": "MAX_RANGE_VALUE",
+            "application_type": "APPLICATION_TYPE",
+        },
         ("CIOControl", "CTRL_ALLOW_"): {"start": "START", "stop": "STOP"},
         ("CIOTrigger", "TRIG_ALLOW_"): {
             "rising": "RISING",
@@ -544,7 +591,7 @@ def minimal_object_class_name(owner: str, method: str) -> str:
 def source_free_headers(monkeypatch):
     """Install source-free descriptor headers for descriptor tests."""
     import dawnpy.headerdefs.bundle as header_bundle
-    from dawnpy.descriptor.handlers import proto_nimble
+    from dawnpy.descriptor.handlers import proto_nimble, proto_wakaama
 
     monkeypatch.setattr(
         header_bundle,
@@ -552,6 +599,7 @@ def source_free_headers(monkeypatch):
         minimal_header_definition_set,
     )
     proto_nimble._nimble_service_defs.cache_clear()
+    proto_wakaama._wakaama_enum_values.cache_clear()
     monkeypatch.setattr(
         proto_nimble,
         "load_header_nimble_service_defs",
@@ -559,6 +607,7 @@ def source_free_headers(monkeypatch):
     )
     yield minimal_header_definition_set()
     proto_nimble._nimble_service_defs.cache_clear()
+    proto_wakaama._wakaama_enum_values.cache_clear()
 
 
 @pytest.fixture

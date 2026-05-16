@@ -99,6 +99,9 @@ from dawnpy.descriptor.handlers.proto_serial import (
 from dawnpy.descriptor.handlers.proto_shell import (
     allocation_rows as _shell_handler_allocation_rows,
 )
+from dawnpy.descriptor.handlers.proto_wakaama import (
+    allocation_rows as _wakaama_handler_allocation_rows,
+)
 from dawnpy.descriptor.reports.allocation import (
     _print_vars_summary,
     print_protocol_allocation_summaries,
@@ -186,6 +189,10 @@ def _shell_allocation_rows(
 
 def _nimble_allocation_rows(config: dict[str, object]) -> list[list[str]]:
     return _nimble_handler_allocation_rows(_proto(config))
+
+
+def _wakaama_allocation_rows(config: dict[str, object]) -> list[list[str]]:
+    return _wakaama_handler_allocation_rows(_proto(config))
 
 
 def _print_can_kconfig_note(config: dict[str, object]) -> None:

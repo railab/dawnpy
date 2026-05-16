@@ -265,6 +265,66 @@ def test_nimble_allocation_rows_skips_invalid_group_and_sensor_shapes():
     ]
 
 
+def test_wakaama_allocation_rows_objects():
+    """Wakaama summary should list LwM2M object/resource IO mappings."""
+    rows = _wakaama_allocation_rows(
+        {
+            "endpoint": "ntfc",
+            "server_host": "192.168.8.1",
+            "server_port": 5683,
+            "objects": [
+                {
+                    "object": "temperature",
+                    "instance": 0,
+                    "resources": [
+                        {
+                            "resource": "sensor_value",
+                            "io": {"id": "temp1"},
+                            "access": "read",
+                        }
+                    ],
+                },
+                {
+                    "object_id": 33000,
+                    "instance": 1,
+                    "resources": [
+                        {
+                            "resource_id": 1,
+                            "io": "counter1",
+                            "access": "rw",
+                        }
+                    ],
+                },
+            ],
+        }
+    )
+
+    assert rows[0] == [
+        "0",
+        "client",
+        "n/a",
+        "n/a",
+        "0",
+        "endpoint=ntfc, servers=192.168.8.1:5683, ios=none",
+    ]
+    assert rows[1] == [
+        "1",
+        "object.0",
+        "0",
+        "0",
+        "1",
+        "resources=0, ios=temp1",
+    ]
+    assert rows[2] == [
+        "2",
+        "object.1",
+        "33000",
+        "1",
+        "1",
+        "resources=1, ios=counter1",
+    ]
+
+
 def test_fmt_bindings_empty_and_list():
     """Binding formatter supports empty and populated lists."""
     assert _fmt_bindings([]) == "none"
