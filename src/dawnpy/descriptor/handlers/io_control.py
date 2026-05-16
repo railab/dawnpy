@@ -37,6 +37,12 @@ allowed_symbols: dict[str, str] = {
 }
 
 
+def summary_dtype_name(obj: object) -> str:
+    """Return the fixed ObjectID dtype name for ``control`` IOs."""
+    del obj
+    return "uint8"
+
+
 def config_fields() -> list[ConfigField]:
     """Return the user-facing YAML config schema for ``control``."""
     return [

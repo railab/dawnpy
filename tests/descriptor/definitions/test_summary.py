@@ -456,6 +456,40 @@ def test_object_id_resolver_io_branches():
     )
     assert descselector_id == expected
 
+    control = ClientIo(
+        io_id="ctrl1",
+        io_type="control",
+        instance=0,
+        dtype="uint32",
+        tags=[],
+        config={},
+        timestamp=False,
+        notify=False,
+        rw=False,
+        subtype=None,
+        variant=None,
+    )
+    control_id = resolver.io_objid(control)
+    control_decoded = resolver.decoder.decode(control_id)
+    assert control_decoded.dtype_name == "uint8"
+
+    trigger = ClientIo(
+        io_id="trig1",
+        io_type="trigger",
+        instance=0,
+        dtype="uint32",
+        tags=[],
+        config={},
+        timestamp=False,
+        notify=False,
+        rw=False,
+        subtype=None,
+        variant=None,
+    )
+    trigger_id = resolver.io_objid(trigger)
+    trigger_decoded = resolver.decoder.decode(trigger_id)
+    assert trigger_decoded.dtype_name == "uint8"
+
 
 def test_build_object_tables_with_methods():
     resolver = ObjectIdResolver()
