@@ -16,6 +16,7 @@ Transport clients and the project QA runner are split into separate packages:
 - `dawnpy-serial`
 - `dawnpy-can`
 - `dawnpy-udp`
+- `dawnpy-lwm2m`
 - `dawnpy-modbus`
 - `dawnpy-tests`
 
