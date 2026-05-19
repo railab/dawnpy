@@ -418,6 +418,7 @@ class DescriptorValidator:
         handler: Any,
         kconfig_path: Path,
         enabled_configs: set[str],
+        config_values: dict[str, Any],
     ) -> tuple[list[ValidationError], list[str], set[str]]:
         """Validate one descriptor object against handler requirements."""
         errors: list[ValidationError] = []
@@ -458,13 +459,50 @@ class DescriptorValidator:
                 )
             )
 
+        for name, op, limit in handler.nuttx_value_requirements:
+            used_configs.add(name)
+            value = config_values.get(name)
+            valid = (
+                isinstance(value, int)
+                and not isinstance(value, bool)
+                and self._compare_int_config(value, op, limit)
+            )
+            if valid:
+                continue
+            missing_configs.append(name)
+            errors.append(
+                ValidationError(
+                    severity="error",
+                    message=(
+                        f"{label} {object_id} ({yaml_type}) "
+                        f"requires {name} {op} {limit} in Kconfig file"
+                    ),
+                    location=str(kconfig_path),
+                )
+            )
+
         return errors, missing_configs, used_configs
+
+    def _compare_int_config(self, value: int, op: str, limit: int) -> bool:
+        """Evaluate one integer Kconfig requirement."""
+        if op == ">=":
+            return value >= limit
+        if op == ">":
+            return value > limit
+        if op == "<=":
+            return value <= limit
+        if op == "<":
+            return value < limit
+        if op in ("=", "=="):
+            return value == limit
+        raise ValueError(f"Unsupported Kconfig requirement operator: {op}")
 
     def _validate_handler_requirements(
         self,
         yaml_path: Path,
         kconfig_path: Path,
         enabled_configs: set[str],
+        config_values: dict[str, Any],
     ) -> tuple[list[ValidationError], list[str], list[str], set[str]]:
         """Validate YAML object handlers against NuttX Kconfig symbols."""
         errors: list[ValidationError] = []
@@ -516,6 +554,7 @@ class DescriptorValidator:
                     handler=handler,
                     kconfig_path=kconfig_path,
                     enabled_configs=enabled_configs,
+                    config_values=config_values,
                 )
                 errors.extend(err)
                 used_classes.append(handler.cpp_class)
@@ -547,7 +586,10 @@ class DescriptorValidator:
 
         # Parse files
         includes = self._parse_descriptor_includes(descriptor_path)
-        enabled_configs: set[str] = set(self._parse_defconfig(defconfig_path))
+        config_values = self._parse_kconfig_values(defconfig_path)
+        enabled_configs: set[str] = {
+            key for key, value in config_values.items() if value is True
+        }
 
         if not includes:
             errors.append(
@@ -572,7 +614,7 @@ class DescriptorValidator:
         )
         err, used_cls, miss_cfg, used_cfg_yaml = (
             self._validate_handler_requirements(
-                yaml_path, defconfig_path, enabled_configs
+                yaml_path, defconfig_path, enabled_configs, config_values
             )
         )
         errors.extend(err)
@@ -605,10 +647,13 @@ class DescriptorValidator:
         missing_configs: list[str] = []
         unused_configs: list[str] = []
 
-        enabled_configs = set(self._parse_defconfig(kconfig_path))
+        config_values = self._parse_kconfig_values(kconfig_path)
+        enabled_configs = {
+            key for key, value in config_values.items() if value is True
+        }
         err, used_cls, miss_cfg, used_cfg = (
             self._validate_handler_requirements(
-                yaml_path, kconfig_path, enabled_configs
+                yaml_path, kconfig_path, enabled_configs, config_values
             )
         )
         errors.extend(err)

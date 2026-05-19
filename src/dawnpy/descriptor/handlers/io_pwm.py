@@ -13,7 +13,10 @@ from dawnpy.headerdefs.bundle import header_cfg_id
 
 yaml_type: str = "pwm"
 cpp_class: str = "CIOPwm"
-nuttx_requirements: tuple[str, ...] = ("CONFIG_PWM", "CONFIG_PWM_MULTICHAN")
+nuttx_requirements: tuple[str, ...] = ("CONFIG_PWM",)
+nuttx_value_requirements: tuple[tuple[str, str, int], ...] = (
+    ("CONFIG_PWM_NCHANNELS", ">=", 1),
+)
 no_fields: bool = False
 pass_through: bool = False
 dtype: str | None = "uint32"

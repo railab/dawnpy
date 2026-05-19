@@ -692,10 +692,10 @@ class TestValidateBasic:
         assert not result.valid
         assert len(result.missing_configs) == 1
 
-    def test_validate_yaml_handler_requires_multiple_nuttx_configs(
+    def test_validate_yaml_handler_requires_pwm_channel_count(
         self, validator, temp_config_dir
     ):
-        """Test handler-owned NuttX requirements support many symbols."""
+        """Test handler-owned NuttX requirements support integer values."""
         descriptor = temp_config_dir / "descriptor.cxx"
         descriptor.write_text('#include "dawn/io/pwm.hxx"\n')
 
@@ -718,11 +718,23 @@ class TestValidateBasic:
         result = validator.validate(str(temp_config_dir))
 
         assert not result.valid
-        assert "CONFIG_PWM_MULTICHAN" in result.missing_configs
+        assert "CONFIG_PWM_NCHANNELS" in result.missing_configs
         assert any(
-            "pwm1 (pwm) requires CONFIG_PWM_MULTICHAN" in e.message
+            "pwm1 (pwm) requires CONFIG_PWM_NCHANNELS >= 1" in e.message
             for e in result.errors
         )
+
+    def test_compare_int_config_operators(self, validator):
+        """Test all integer Kconfig requirement operators."""
+        assert validator._compare_int_config(2, ">=", 2)
+        assert validator._compare_int_config(2, ">", 1)
+        assert validator._compare_int_config(2, "<=", 2)
+        assert validator._compare_int_config(1, "<", 2)
+        assert validator._compare_int_config(2, "=", 2)
+        assert validator._compare_int_config(2, "==", 2)
+
+        with pytest.raises(ValueError, match="Unsupported Kconfig"):
+            validator._compare_int_config(2, "!=", 1)
 
     def test_validate_generated_config_uses_dot_config(
         self, validator, temp_config_dir
