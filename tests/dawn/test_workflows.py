@@ -355,7 +355,7 @@ def test_validate_generated_config_resolves_yaml_descriptor(
         "CONFIG_DAWN_IO_PWM=y\n"
         "CONFIG_DAWN_DTYPE_UINT32=y\n"
         "CONFIG_PWM=y\n"
-        "CONFIG_PWM_MULTICHAN=y\n",
+        "CONFIG_PWM_NCHANNELS=1\n",
         encoding="utf-8",
     )
 

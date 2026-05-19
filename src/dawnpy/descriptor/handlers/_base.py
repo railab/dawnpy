@@ -43,6 +43,7 @@ class IOHandler(Protocol):
     yaml_type: str
     cpp_class: str
     nuttx_requirements: tuple[str, ...]
+    nuttx_value_requirements: tuple[tuple[str, str, int], ...]
     no_fields: bool
     pass_through: bool
     dtype: str | None
@@ -94,6 +95,7 @@ class ProgHandler(Protocol):
     yaml_type: str
     cpp_class: str
     nuttx_requirements: tuple[str, ...]
+    nuttx_value_requirements: tuple[tuple[str, str, int], ...]
 
     @staticmethod
     def config_fields() -> list[ConfigField]:
@@ -162,6 +164,7 @@ class ProtoHandler(Protocol):
     yaml_type: str
     cpp_class: str
     nuttx_requirements: tuple[str, ...]
+    nuttx_value_requirements: tuple[tuple[str, str, int], ...]
     uses_standard_bindings: bool
 
     @staticmethod
@@ -265,6 +268,14 @@ class ModuleHandlerAdapter:
         """Return NuttX Kconfig symbols required by this handler."""
         value = getattr(self._module, "nuttx_requirements", ())
         return tuple(str(item) for item in value)
+
+    @property
+    def nuttx_value_requirements(self) -> tuple[tuple[str, str, int], ...]:
+        """Return NuttX integer Kconfig requirements for this handler."""
+        value = getattr(self._module, "nuttx_value_requirements", ())
+        return tuple(
+            (str(name), str(op), int(limit)) for name, op, limit in value
+        )
 
     def config_fields(self) -> list[ConfigField]:
         """Return this handler's config field schema."""
