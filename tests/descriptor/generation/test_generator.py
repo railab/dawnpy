@@ -83,6 +83,37 @@ ios:
         assert len(generator.objects) == 0
         assert "dawn/common/descriptor.hxx" in generator.includes
 
+    def test_generate_with_include_block(self, generator, tmp_path):
+        """Include blocks expand before descriptor code generation."""
+        block_dir = tmp_path / "blocks"
+        block_dir.mkdir()
+        (block_dir / "common.yaml").write_text("""
+outputs:
+  - id: led
+    ref: led1
+ios:
+  - id: led1
+    type: dummy
+    dtype: bool
+""")
+        yaml_file = tmp_path / "descriptor.yaml"
+        yaml_file.write_text("""
+includes:
+  - id: common
+    path: blocks/common.yaml
+protocols:
+  - id: shell1
+    type: shell
+    bindings:
+      - "@common.led"
+""")
+
+        cpp_code = generator.generate(str(yaml_file))
+
+        assert "#define LED" in cpp_code
+        assert "COMMON__LED1" not in cpp_code
+        assert "@common.led" not in cpp_code
+
     def test_parse_spec_with_io(self, generator):
         """Test parsing spec with single IO."""
         spec = {
