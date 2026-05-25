@@ -122,6 +122,37 @@ protocols: []
     assert desc.get_tagged_ios("missing") == []
 
 
+def test_client_descriptor_loads_include_blocks(tmp_path):
+    blocks = tmp_path / "blocks"
+    blocks.mkdir()
+    (blocks / "common.yaml").write_text("""
+outputs:
+  - id: led
+    ref: led1
+ios:
+  - id: led1
+    type: dummy
+    dtype: uint32
+""")
+    descriptor = """
+includes:
+  - id: common
+    path: blocks/common.yaml
+protocols:
+  - id: shell1
+    type: shell
+    bindings:
+      - "@common.led"
+"""
+    path = _write_descriptor(tmp_path, descriptor)
+
+    desc = load_client_descriptor(path)
+
+    assert desc.get_io("led") is not None
+    assert desc.get_protocol("shell") is not None
+    assert desc.get_protocol("shell").bindings == ["led"]
+
+
 def test_client_descriptor_invalid_tags(tmp_path):
     descriptor = """
 metadata:

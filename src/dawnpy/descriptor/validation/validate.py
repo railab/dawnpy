@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Any
 
 import click
-import yaml
 
 from dawnpy.cli.table import print_table
 from dawnpy.descriptor.client import ClientDescriptor, load_client_descriptor
@@ -32,6 +31,7 @@ from dawnpy.descriptor.handlers._allocation import try_parse_int
 from dawnpy.descriptor.reports.allocation import (
     print_protocol_allocation_summaries,
 )
+from dawnpy.descriptor.support.vars import load_yaml_with_vars
 from dawnpy.descriptor.validation.conflicts import check_key_conflicts
 from dawnpy.descriptor.validation.validator import DescriptorValidator
 
@@ -204,9 +204,7 @@ def _print_object_summary(client_desc: ClientDescriptor) -> None:
 def _load_descriptor_spec(yaml_path: Path) -> dict[str, Any]:
     """Load a descriptor YAML spec file as a dict (best-effort)."""
     try:
-        with open(yaml_path) as f:
-            data = yaml.safe_load(f) or {}
-            return data if isinstance(data, dict) else {}
+        return load_yaml_with_vars(str(yaml_path))
     except Exception:  # pragma: no cover
         return {}
 
