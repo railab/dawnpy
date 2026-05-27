@@ -296,6 +296,67 @@ def test_io_config_binary_uses_config_io_rw_grant(mock_header_cfg_id):
     )
 
 
+def test_config_io_binary_cfg_id_for_pulsecount_handler_field():
+    decoder = ObjectIdDecoder()
+    io_dtype_map = {
+        str(info["type"]).lower(): dtype_id
+        for dtype_id, info in decoder.dtype_info.items()
+    }
+    io_cls_map = {
+        name.lower(): cls_id for cls_id, name in decoder.io_classes.items()
+    }
+    ctx = io_config_mod._IOSerializeContext(
+        obj=IoObject(
+            obj_id="config0",
+            io_type="config",
+            instance=0,
+            dtype="uint32",
+            tags=[],
+            config={},
+            timestamp=False,
+            notify=False,
+            rw=False,
+            subtype=None,
+            variant=None,
+        ),
+        io_cls=io_cls_map["config"],
+        dtype=io_dtype_map["uint32"],
+        dtype_name="uint32",
+        config={},
+        obj_ids={},
+        items=[],
+        decoder=decoder,
+        io_dtype_map=io_dtype_map,
+        io_cls_map=io_cls_map,
+        config_rw_grants={("pulsecount0", "high_ns"): True},
+    )
+    field = ConfigField(
+        name="high_ns",
+        cpp_helper="CIOPulseCount::cfgIdHighNs",
+        value_type="int",
+    )
+
+    value = io_config_mod._binary_cfg_id(
+        ctx,
+        field,
+        {
+            "id": "pulsecount0",
+            "type": "pulsecount",
+            "dtype": "uint32",
+            "config": {"high_ns": 1000},
+        },
+    )
+
+    assert value == cfg_id(
+        1,
+        io_cls_map["pulsecount"],
+        io_dtype_map["uint32"],
+        True,
+        1,
+        header_cfg_id("CIOPulseCount", "cfgIdHighNs"),
+    )
+
+
 def test_serialize_io_extended_supported_types():
     decoder = ObjectIdDecoder()
     obj_ids: dict[str, int] = {}

@@ -142,6 +142,106 @@ def test_generate_descriptor_binary_pwm_without_freq_has_no_type_config(
     assert freq_cfg not in words
 
 
+def test_generate_descriptor_binary_pulsecount_timing_config(
+    mock_header_cfg_id,
+):
+    decoder = ObjectIdDecoder()
+    obj = IoObject(
+        obj_id="pulsecount0",
+        io_type="pulsecount",
+        instance=0,
+        dtype="uint32",
+        tags=[],
+        config={"device": 0, "high_ns": 1000, "low_ns": 2000},
+        timestamp=False,
+        notify=False,
+        rw=False,
+        subtype=None,
+        variant=None,
+    )
+    words: list[int] = []
+
+    _serialize_io_object(words, obj, {}, decoder)
+
+    io_cls = next(
+        cls for cls, name in decoder.io_classes.items() if name == "pulsecount"
+    )
+    dtype = next(
+        dtype_id
+        for dtype_id, info in decoder.dtype_info.items()
+        if info["type"] == "uint32"
+    )
+    high_cfg = cfg_id(
+        1,
+        io_cls,
+        dtype,
+        False,
+        1,
+        header_cfg_id("CIOPulseCount", "cfgIdHighNs"),
+    )
+    low_cfg = cfg_id(
+        1,
+        io_cls,
+        dtype,
+        False,
+        1,
+        header_cfg_id("CIOPulseCount", "cfgIdLowNs"),
+    )
+    assert high_cfg in words
+    assert words[words.index(high_cfg) + 1] == 1000
+    assert low_cfg in words
+    assert words[words.index(low_cfg) + 1] == 2000
+
+
+def test_generate_descriptor_binary_pulsecount_without_timing_has_no_type_config(
+    mock_header_cfg_id,
+):
+    decoder = ObjectIdDecoder()
+    obj = IoObject(
+        obj_id="pulsecount0",
+        io_type="pulsecount",
+        instance=0,
+        dtype="uint32",
+        tags=[],
+        config={"device": 0},
+        timestamp=False,
+        notify=False,
+        rw=False,
+        subtype=None,
+        variant=None,
+    )
+    words: list[int] = []
+
+    _serialize_io_object(words, obj, {}, decoder)
+
+    io_cls = next(
+        cls for cls, name in decoder.io_classes.items() if name == "pulsecount"
+    )
+    dtype = next(
+        dtype_id
+        for dtype_id, info in decoder.dtype_info.items()
+        if info["type"] == "uint32"
+    )
+    high_cfg = cfg_id(
+        1,
+        io_cls,
+        dtype,
+        True,
+        1,
+        header_cfg_id("CIOPulseCount", "cfgIdHighNs"),
+    )
+    low_cfg = cfg_id(
+        1,
+        io_cls,
+        dtype,
+        True,
+        1,
+        header_cfg_id("CIOPulseCount", "cfgIdLowNs"),
+    )
+    assert high_cfg not in words
+    assert low_cfg not in words
+
+
 def test_generate_descriptor_binary_with_program_object():
     with tempfile.TemporaryDirectory() as tmpdir:
         yaml_path = Path(tmpdir) / "prog.yaml"

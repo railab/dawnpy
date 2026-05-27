@@ -149,7 +149,11 @@ def _yaml_type_from_cpp_class(kind: str, cpp_class: str) -> str:
     snake = _camel_to_snake(stem)
     compact = snake.replace("_", "")
     if kind == "io":
-        alias = {"file": "fileio", "desc_selector": "descselector"}
+        alias = {
+            "file": "fileio",
+            "desc_selector": "descselector",
+            "pulse_count": "pulsecount",
+        }
         return alias.get(snake, snake)
     if kind == "prog":
         alias = {"process": "stats", "moving_average": "movingavg"}

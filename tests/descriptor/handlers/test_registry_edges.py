@@ -20,6 +20,7 @@ def test_inlined_serializer_registries_bind_yaml_to_cpp_class(monkeypatch):
     assert IO_HANDLER_REGISTRY["control"].cpp_class == "CIOControl"
     assert IO_HANDLER_REGISTRY["fileio"].cpp_class == "CIOFile"
     assert IO_HANDLER_REGISTRY["pwm"].cpp_class == "CIOPwm"
+    assert IO_HANDLER_REGISTRY["pulsecount"].cpp_class == "CIOPulseCount"
     assert IO_HANDLER_REGISTRY["leds"].cpp_class == "CIOLeds"
     assert IO_HANDLER_REGISTRY["rgb_led"].cpp_class == "CIORgbLed"
 

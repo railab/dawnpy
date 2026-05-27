@@ -724,6 +724,36 @@ class TestValidateBasic:
             for e in result.errors
         )
 
+    def test_validate_yaml_handler_requires_pulsecount_driver(
+        self, validator, temp_config_dir
+    ):
+        """Test handler-owned NuttX requirements support pulsecount IO."""
+        descriptor = temp_config_dir / "descriptor.cxx"
+        descriptor.write_text('#include "dawn/io/pulsecount.hxx"\n')
+
+        defconfig = temp_config_dir / "defconfig"
+        defconfig.write_text(
+            "CONFIG_DAWN_IO_PULSECOUNT=y\n" "CONFIG_DAWN_DTYPE_UINT32=y\n"
+        )
+
+        descriptor_yaml = temp_config_dir / "descriptor.yaml"
+        descriptor_yaml.write_text(
+            "ios:\n"
+            "  - id: pulsecount1\n"
+            "    type: pulsecount\n"
+            "    instance: 0\n"
+            "    dtype: uint32\n"
+        )
+
+        result = validator.validate(str(temp_config_dir))
+
+        assert not result.valid
+        assert "CONFIG_PULSECOUNT" in result.missing_configs
+        assert any(
+            "pulsecount1 (pulsecount) requires CONFIG_PULSECOUNT" in e.message
+            for e in result.errors
+        )
+
     def test_compare_int_config_operators(self, validator):
         """Test all integer Kconfig requirement operators."""
         assert validator._compare_int_config(2, ">=", 2)

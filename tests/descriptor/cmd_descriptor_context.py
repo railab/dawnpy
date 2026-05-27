@@ -141,6 +141,8 @@ def mock_header_cfg_id(monkeypatch):
     """Replace Dawn header cfg-id lookups with fixed unit-test values."""
     mapping = {
         ("CIOPwm", "cfgIdFreq"): 17,
+        ("CIOPulseCount", "cfgIdHighNs"): 18,
+        ("CIOPulseCount", "cfgIdLowNs"): 19,
         ("CIOCommon", "cfgIdDevno"): 4,
         ("CIOCommon", "cfgIdNotify"): 5,
         ("CIOCommon", "cfgIdLimitMin"): 1,

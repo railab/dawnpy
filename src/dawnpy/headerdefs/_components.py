@@ -39,6 +39,7 @@ def _component_kconfig(kind: str, cpp_class: str) -> str:
         "Rand": "RANDIO",
         "File": "FILE",
         "DescSelector": "DESC_SELECTOR",
+        "PulseCount": "PULSECOUNT",
     }
     prog_special = {
         "MovingAverage": "MOVING_AVG",
