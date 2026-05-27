@@ -147,6 +147,31 @@ def test_modbus_allocation_rows_with_kconfig_count():
     assert "note=count=CONFIG_COUNT assumed 0" in rows[0][5]
 
 
+def test_modbus_allocation_rows_seekable_uses_window_plus_offset_register():
+    rows = _modbus_allocation_rows(
+        {
+            "registers": [
+                {
+                    "type": "seekable",
+                    "config": 256,
+                    "start": 0x1000,
+                    "bindings": ["descriptor0"],
+                },
+            ]
+        }
+    )
+    assert rows == [
+        [
+            "0",
+            "seekable",
+            "4096",
+            "4352",
+            "257",
+            "start=4096, config=256, ios=descriptor0",
+        ]
+    ]
+
+
 def test_serial_nxscope_shell_allocation_rows():
     """Protocol-specific rows include config details for non-CAN protocols."""
     serial_rows = _serial_allocation_rows(

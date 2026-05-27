@@ -48,6 +48,7 @@ _IO_PARAM_OVERRIDES = {
     "rgb_led": ["timestamp", "instance"],
     "buttons": ["timestamp", "instance"],
     "pwm": ["timestamp", "instance"],
+    "pulsecount": ["timestamp", "instance"],
     "gpi": ["notify", "instance"],
     "gpo": ["notify", "instance"],
     "virt": ["dtype", "notify", "instance"],
@@ -378,6 +379,11 @@ def minimal_component_defs() -> dict[str, list[dict[str, str]]]:
                 "CONFIG_DAWN_IO_CAPABILITIES",
             ),
             ("CIOPwm", "dawn/io/pwm.hxx", "CONFIG_DAWN_IO_PWM"),
+            (
+                "CIOPulseCount",
+                "dawn/io/pulsecount.hxx",
+                "CONFIG_DAWN_IO_PULSECOUNT",
+            ),
             ("CIORgbLed", "dawn/io/rgbled.hxx", "CONFIG_DAWN_IO_RGB_LED"),
         ],
         "programs": [
@@ -488,6 +494,8 @@ def minimal_cfg_id(owner: str, method: str) -> int:
         ("CIOCommon", "cfgIdLimitMax"): 4,
         ("CIOCommon", "cfgIdLimitStep"): 5,
         ("CIOPwm", "cfgIdFreq"): 6,
+        ("CIOPulseCount", "cfgIdHighNs"): 7,
+        ("CIOPulseCount", "cfgIdLowNs"): 8,
         ("CProtoNxscopeDummy", "cfgIdIOBind"): 1,
         ("CProtoNxscopeDummy", "cfgIdIOBind2"): 2,
         ("CProtoNxscopeSerial", "cfgIdPath"): 3,

@@ -219,6 +219,50 @@ protocols:
         with pytest.raises(ValueError, match="modbus register overlap"):
             generator.parse_spec(spec)
 
+    def test_modbus_seekable_overlap_is_rejected(self, generator):
+        spec = {
+            "metadata": {"title": "x", "version": "1"},
+            "ios": [
+                {
+                    "id": "descriptor0",
+                    "type": "descriptor",
+                    "dtype": "uint32",
+                    "config": {"device": 0},
+                },
+                {
+                    "id": "descriptor1",
+                    "type": "descriptor",
+                    "dtype": "uint32",
+                    "config": {"device": 1},
+                },
+            ],
+            "protocols": [
+                {
+                    "id": "mb0",
+                    "type": "modbus_rtu",
+                    "config": {
+                        "path": "/dev/ttyS1",
+                        "registers": [
+                            {
+                                "type": "seekable",
+                                "config": 256,
+                                "start": 0x1000,
+                                "bindings": ["descriptor0"],
+                            },
+                            {
+                                "type": "seekable",
+                                "config": 256,
+                                "start": 0x1100,
+                                "bindings": ["descriptor1"],
+                            },
+                        ],
+                    },
+                }
+            ],
+        }
+        with pytest.raises(ValueError, match="modbus register overlap"):
+            generator.parse_spec(spec)
+
     def test_resolve_reference_dict(self, generator):
         """Test resolving dictionary reference."""
         ref = {"id": "test_io"}

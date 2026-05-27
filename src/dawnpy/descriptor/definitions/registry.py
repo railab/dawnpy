@@ -377,6 +377,7 @@ def get_io_helper_call(
         "rgb_led",
         "buttons",
         "pwm",
+        "pulsecount",
     ]:
         # ADC/DAC/Leds/Buttons use (timestamp, instance) signature, no dtype
         timestamp = str(flags.get("timestamp", False)).lower()
