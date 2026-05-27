@@ -104,7 +104,12 @@ def validate_descriptor_context(
         start = int(reg.get("start", 0))
         bindings = resolve_references(reg.get("bindings", []))
         span = sum(
-            _modbus_binding_registers(reg_type, binding, objects)
+            _modbus_binding_registers(
+                reg_type,
+                binding,
+                objects,
+                int(reg.get("config", 0)),
+            )
             for binding in bindings
         )
         end = start + span
@@ -130,7 +135,7 @@ def _modbus_address_space(reg_type: str) -> str | None:
         return "coil"  # pragma: no cover
     if reg_type in ("discrete", "discrete_packed"):
         return "discrete"  # pragma: no cover
-    if reg_type == "holding":
+    if reg_type in ("holding", "seekable"):
         return "holding"  # pragma: no cover
     if reg_type == "input":
         return "input"  # pragma: no cover
@@ -141,10 +146,14 @@ def _modbus_binding_registers(
     reg_type: str,
     binding_id: str,
     objects: dict[str, "DescriptorObject"],
+    reg_config: int = 0,
 ) -> int:
     """Return register/coil width for one binding in a Modbus block."""
     if reg_type in ("coil", "coil_packed", "discrete", "discrete_packed"):
         return 1  # pragma: no cover
+    if reg_type == "seekable":
+        window_regs = reg_config if reg_config > 0 else 8
+        return window_regs + 1
 
     from dawnpy.descriptor.definitions.objects import IoObject
 
