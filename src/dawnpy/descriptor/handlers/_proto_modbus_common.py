@@ -104,10 +104,17 @@ def modbus_allocation_rows(proto: Any) -> list[list[str]]:
         declared_raw = try_parse_int(reg.get("count", 0))
         declared = max(0, declared_raw) if declared_raw is not None else 0
         resolved = resolve_references(reg.get("bindings", []))
+        reg_config = try_parse_int(reg.get("config", 0))
+        resolved_size = 0
+        if reg_type == "seekable":
+            window_regs = reg_config if reg_config and reg_config > 0 else 8
+            resolved_size = (window_regs + 1) * len(resolved)
+        else:
+            resolved_size = len(resolved)
         size = (
-            max(declared, len(resolved))
+            max(declared, resolved_size)
             if declared is not None
-            else len(resolved)
+            else resolved_size
         )
         note_parts: list[str] = []
         if start is None:
