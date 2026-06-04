@@ -259,17 +259,30 @@ def test_builtin_types_loader_uses_header_type_defs(monkeypatch):
                     "header": "dawn/proto/r.hxx",
                 }
             ],
+            "system_types": [
+                {
+                    "yaml_type": "lte",
+                    "cpp_class": "CSystemLte",
+                    "header": "dawn/system/lte.hxx",
+                }
+            ],
         },
     )
     assert "x" in builtin_io_mod.build_registration(defs).io_types
     assert "p" in builtin_prog_mod.build_registration(defs).prog_types
     assert "r" in builtin_proto_mod.build_registration(defs).proto_types
+    assert "lte" in builtin_system_mod.build_registration(defs).system_types
 
 
 def test_builtin_types_loader_raises_on_invalid_type_containers(monkeypatch):
     patch_builtin_type_indexers(monkeypatch)
     defs = _header_type_defs(
-        {"io_types": {}, "prog_types": {}, "proto_types": {}},
+        {
+            "io_types": {},
+            "prog_types": {},
+            "proto_types": {},
+            "system_types": {},
+        },
     )
     with pytest.raises(
         headerdefs.HeaderDefsError,
@@ -286,6 +299,11 @@ def test_builtin_types_loader_raises_on_invalid_type_containers(monkeypatch):
         match="Header Protocol type definitions are invalid",
     ):
         builtin_proto_mod.build_registration(defs)
+    with pytest.raises(
+        headerdefs.HeaderDefsError,
+        match="Header System type definitions are invalid",
+    ):
+        builtin_system_mod.build_registration(defs)
 
 
 def test_builtin_types_loader_raises_when_header_type_defs_error(
@@ -304,12 +322,17 @@ def test_builtin_types_loader_raises_when_header_type_defs_error(
     monkeypatch.setattr(
         builtin_proto_mod.header_bundle, "load_header_bundle", _boom
     )
+    monkeypatch.setattr(
+        builtin_system_mod.header_bundle, "load_header_bundle", _boom
+    )
     with pytest.raises(headerdefs.HeaderDefsError, match="x"):
         builtin_io_mod.build_registration()
     with pytest.raises(headerdefs.HeaderDefsError, match="x"):
         builtin_prog_mod.build_registration()
     with pytest.raises(headerdefs.HeaderDefsError, match="x"):
         builtin_proto_mod.build_registration()
+    with pytest.raises(headerdefs.HeaderDefsError, match="x"):
+        builtin_system_mod.build_registration()
 
 
 def test_builtin_types_loader_skips_non_dict_type_entries(monkeypatch):
@@ -342,11 +365,20 @@ def test_builtin_types_loader_skips_non_dict_type_entries(monkeypatch):
                     "header": "dawn/proto/r.hxx",
                 },
             ],
+            "system_types": [
+                "bad",
+                {
+                    "yaml_type": "lte",
+                    "cpp_class": "CSystemLte",
+                    "header": "dawn/system/lte.hxx",
+                },
+            ],
         },
     )
     assert "x" in builtin_io_mod.build_registration(defs).io_types
     assert "p" in builtin_prog_mod.build_registration(defs).prog_types
     assert "r" in builtin_proto_mod.build_registration(defs).proto_types
+    assert "lte" in builtin_system_mod.build_registration(defs).system_types
 
 
 def test_builtin_types_loader_raises_on_empty_type_entries(monkeypatch):

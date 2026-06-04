@@ -23,12 +23,18 @@ from dawnpy.descriptor.definitions.objects import (
     IoObject,
     ProgramObject,
     ProtocolObject,
+    SystemObject,
     decode_objects,
 )
-from dawnpy.descriptor.definitions.registry import PROG_TYPES, PROTO_TYPES
+from dawnpy.descriptor.definitions.registry import (
+    PROG_TYPES,
+    PROTO_TYPES,
+    SYSTEM_TYPES,
+)
 from dawnpy.descriptor.generation import ProtocolConfigGenerator
 from dawnpy.descriptor.generation.io_codegen import IoConfigGenerator
 from dawnpy.descriptor.generation.prog import ProgramConfigGenerator
+from dawnpy.descriptor.generation.system import SystemConfigGenerator
 from dawnpy.descriptor.handlers import PROTO_HANDLER_REGISTRY
 from dawnpy.descriptor.support.formatting import DescriptorFormatHelper
 from dawnpy.descriptor.support.utils import (
@@ -56,6 +62,10 @@ class DescriptorGenerator:
         self._io_config_builder = self._build_io_config_generator()
         self._prog_config_builder = self._build_program_config_generator()
         self._proto_config_builder = self._build_protocol_config_generator()
+        self._system_config_builder = SystemConfigGenerator(
+            system_types=dict(SYSTEM_TYPES),
+            format_helper=self._format_helper,
+        )
 
     def _build_io_config_generator(  # pragma: no cover
         self,
@@ -206,6 +216,14 @@ class DescriptorGenerator:
 
             elif isinstance(obj, ProtocolObject):
                 lines.extend(self._generate_proto_config(macro_name, obj))
+                lines.append("")
+
+            elif isinstance(obj, SystemObject):
+                lines.extend(
+                    self._system_config_builder.generate_system_config(
+                        macro_name, obj
+                    )
+                )
                 lines.append("")
 
         # Footer

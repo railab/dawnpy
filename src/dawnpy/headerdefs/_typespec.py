@@ -141,7 +141,12 @@ def _collect_class_specs(
 
 def _yaml_type_from_cpp_class(kind: str, cpp_class: str) -> str:
     """Map C++ class name to descriptor YAML type token."""
-    prefix = {"io": "CIO", "prog": "CProg", "proto": "CProto"}[kind]
+    prefix = {
+        "io": "CIO",
+        "prog": "CProg",
+        "proto": "CProto",
+        "system": "CSystem",
+    }[kind]
     if cpp_class.startswith(prefix):
         stem = cpp_class[len(prefix) :]
     else:
@@ -258,6 +263,21 @@ def _build_prog_type_spec(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _build_system_type_spec(item: dict[str, Any]) -> dict[str, Any]:
+    """Build one System type entry from parsed class methods.
+
+    Only concrete System classes expose ``objectId`` helpers; the base
+    (``CSystemCommon``/``CSystemFactory``/``CSystemHandler``) do not, so
+    ``require_methods`` already filters them out before this point.
+    """
+    cpp_class = str(item["cpp_class"])
+    return {
+        "yaml_type": _yaml_type_from_cpp_class("system", cpp_class),
+        "cpp_class": cpp_class,
+        "header": str(item["header"]),
+    }
+
+
 def _build_proto_type_spec(item: dict[str, Any]) -> dict[str, Any]:
     """Build one Protocol type entry from parsed class methods."""
     cpp_class = str(item["cpp_class"])
@@ -282,6 +302,9 @@ def load_header_type_defs() -> dict[str, list[dict[str, Any]]]:
     proto_specs = _collect_class_specs(
         root, subdir="proto", class_prefix="CProto", recursive=True
     )
+    sys_specs = _collect_class_specs(
+        root, subdir="system", class_prefix="CSystem"
+    )
 
     io_types = sorted(
         (_build_io_type_spec(item) for item in io_specs),
@@ -299,6 +322,14 @@ def load_header_type_defs() -> dict[str, list[dict[str, Any]]]:
         (_build_proto_type_spec(item) for item in proto_specs),
         key=lambda x: str(x.get("yaml_type", "")),
     )
+    system_types = sorted(
+        (
+            spec
+            for spec in (_build_system_type_spec(item) for item in sys_specs)
+            if spec
+        ),
+        key=lambda x: str(x.get("yaml_type", "")),
+    )
     if not io_types:
         raise HeaderDefsError("No IO type definitions loaded from headers")
     if not prog_types:
@@ -314,4 +345,5 @@ def load_header_type_defs() -> dict[str, list[dict[str, Any]]]:
         "io_types": io_types,
         "prog_types": prog_types,
         "proto_types": proto_types,
+        "system_types": system_types,
     }

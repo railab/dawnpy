@@ -22,8 +22,16 @@ def load_builtin_registrations(
     from dawnpy.descriptor.definitions.proto_family import (
         build_registration as _build_proto,
     )
+    from dawnpy.descriptor.definitions.system_family import (
+        build_registration as _build_system,
+    )
 
-    return [_build_io(defs), _build_prog(defs), _build_proto(defs)]
+    return [
+        _build_io(defs),
+        _build_prog(defs),
+        _build_proto(defs),
+        _build_system(defs),
+    ]
 
 
 __all__ = ["load_builtin_registrations"]

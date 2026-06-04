@@ -280,6 +280,32 @@ class ProtoTypeInfo:
         self.uses_standard_bindings = uses_standard_bindings
 
 
+class SystemTypeInfo:
+    """Information about a System (OBJTYPE_ANY) type."""
+
+    def __init__(
+        self,
+        cpp_class: str,
+        header: str,
+        config_fields: list[Any] | None = None,
+    ):
+        """
+        Initialize System type info.
+
+        :param cpp_class: C++ class name (e.g. "CSystemLte").
+        :param header: Header file path (e.g. "dawn/system/lte.hxx").
+        :param config_fields: Optional list of :class:`ConfigField`
+            describing per-instance config items. Generators iterate this
+            list and emit one ``cfgIdXxx`` block per field present under the
+            object's YAML ``config:`` block.
+        """
+        self.cpp_class = cpp_class
+        self.header = header
+        self.config_fields: list[ConfigField] = _normalize_config_fields(
+            config_fields
+        )
+
+
 @dataclass(frozen=True)
 class TypeRegistration:
     """User-package contribution to dawnpy's descriptor type registry.
@@ -306,3 +332,4 @@ class TypeRegistration:
     io_types: Mapping[str, IOTypeInfo] = field(default_factory=dict)
     prog_types: Mapping[str, ProgTypeInfo] = field(default_factory=dict)
     proto_types: Mapping[str, ProtoTypeInfo] = field(default_factory=dict)
+    system_types: Mapping[str, SystemTypeInfo] = field(default_factory=dict)
