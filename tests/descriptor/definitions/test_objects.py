@@ -14,6 +14,7 @@ from dawnpy.descriptor.definitions.objects import (
     IoObject,
     ProgramObject,
     ProtocolObject,
+    SystemObject,
     _is_list_of_dicts,
     decode_objects,
     prepare_spec_instances,
@@ -1079,3 +1080,48 @@ def test_resolve_proto_bindings_non_list():
         )
         == []
     )
+
+
+def test_system_object_missing_fields():
+    with pytest.raises(
+        DescriptorDecodeError, match="System entry is missing id"
+    ):
+        SystemObject.from_spec({"type": "lte"}, strict=True)
+    with pytest.raises(DescriptorDecodeError, match="is missing type"):
+        SystemObject.from_spec({"id": "lte0"}, strict=True)
+
+
+def test_system_object_returns_none_when_not_strict():
+    assert SystemObject.from_spec({"type": "lte"}, strict=False) is None
+    assert SystemObject.from_spec({"id": "lte0"}, strict=False) is None
+    assert (
+        SystemObject.from_spec({"id": "lte0", "type": "unknown"}, strict=False)
+        is None
+    )
+
+
+def test_system_object_validate_errors():
+    sys_missing_id = SystemObject("", "lte", 0, {})
+    assert "id is required" in sys_missing_id.validate()
+    sys_bad_type = SystemObject("sys2", "unknown", 0, {})
+    assert any("unknown System type" in e for e in sys_bad_type.validate())
+    with pytest.raises(DescriptorDecodeError, match="invalid"):
+        SystemObject.from_spec({"id": "sys2", "type": "unknown"}, strict=True)
+
+
+def test_system_object_validate_negative_instance():
+    sysobj = SystemObject("lte0", "lte", -1, {})
+    assert "instance must be >= 0" in sysobj.validate()
+
+
+def test_system_object_validate_config_not_mapping():
+    sysobj = SystemObject("lte0", "lte", 0, "notamap")
+    assert "config must be a mapping" in sysobj.validate()
+
+
+def test_system_object_header_helper_and_category():
+    obj = SystemObject.from_spec({"id": "lte0", "type": "lte"}, strict=True)
+    assert obj is not None
+    assert obj.category == "SYSTEM"
+    assert obj.get_header() == "dawn/system/lte.hxx"
+    assert obj.get_helper_call() == "CSystemLte::objectId(0)"

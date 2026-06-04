@@ -34,6 +34,9 @@ from dawnpy.descriptor.definitions.type_info import (
     ProtoTypeInfo as ProtoTypeInfo,
 )
 from dawnpy.descriptor.definitions.type_info import (
+    SystemTypeInfo as SystemTypeInfo,
+)
+from dawnpy.descriptor.definitions.type_info import (
     TypeRegistration as TypeRegistration,
 )
 from dawnpy.headerdefs.bundle import HeaderBundle
@@ -100,11 +103,14 @@ def _apply_registration(
     io_types: MutableMappingABC[str, IOTypeInfo],
     prog_types: MutableMappingABC[str, ProgTypeInfo],
     proto_types: MutableMappingABC[str, ProtoTypeInfo],
+    system_types: MutableMappingABC[str, SystemTypeInfo] | None = None,
 ) -> None:
     """Merge a single registration into the in-memory type dicts."""
     _merge_into(reg.name, "io", reg.io_types, io_types)
     _merge_into(reg.name, "prog", reg.prog_types, prog_types)
     _merge_into(reg.name, "proto", reg.proto_types, proto_types)
+    if system_types is not None:
+        _merge_into(reg.name, "sys", reg.system_types, system_types)
 
 
 def _iter_registrations() -> list[TypeRegistration]:
@@ -156,6 +162,7 @@ _DTYPE_INITVAL_PARAM_MAP_DATA: dict[str, int] = {}
 _IO_TYPES_DATA: dict[str, IOTypeInfo] = {}
 _PROG_TYPES_DATA: dict[str, ProgTypeInfo] = {}
 _PROTO_TYPES_DATA: dict[str, ProtoTypeInfo] = {}
+_SYSTEM_TYPES_DATA: dict[str, SystemTypeInfo] = {}
 _REGISTRY_LOADED = False
 
 
@@ -168,6 +175,7 @@ def reset_type_registry() -> None:
     _IO_TYPES_DATA.clear()
     _PROG_TYPES_DATA.clear()
     _PROTO_TYPES_DATA.clear()
+    _SYSTEM_TYPES_DATA.clear()
 
 
 def _bootstrap_builtin_types(defs: HeaderBundle) -> None:
@@ -180,6 +188,7 @@ def _bootstrap_builtin_types(defs: HeaderBundle) -> None:
             _IO_TYPES_DATA,
             _PROG_TYPES_DATA,
             _PROTO_TYPES_DATA,
+            _SYSTEM_TYPES_DATA,
         )
 
 
@@ -197,6 +206,7 @@ def _ensure_registry_loaded() -> None:
     _IO_TYPES_DATA.clear()
     _PROG_TYPES_DATA.clear()
     _PROTO_TYPES_DATA.clear()
+    _SYSTEM_TYPES_DATA.clear()
     _bootstrap_builtin_types(defs)
 
     # Apply user TypeRegistration plugins from installed Python packages.
@@ -206,6 +216,7 @@ def _ensure_registry_loaded() -> None:
             _IO_TYPES_DATA,
             _PROG_TYPES_DATA,
             _PROTO_TYPES_DATA,
+            _SYSTEM_TYPES_DATA,
         )
 
     _REGISTRY_LOADED = True
@@ -258,6 +269,9 @@ PROG_TYPES: MutableMappingABC[str, ProgTypeInfo] = _LazyMutableMapping(
 )
 PROTO_TYPES: MutableMappingABC[str, ProtoTypeInfo] = _LazyMutableMapping(
     _PROTO_TYPES_DATA
+)
+SYSTEM_TYPES: MutableMappingABC[str, SystemTypeInfo] = _LazyMutableMapping(
+    _SYSTEM_TYPES_DATA
 )
 
 
@@ -334,12 +348,12 @@ def load_registrations_from_path(path: Path) -> list[TypeRegistration]:
 def apply_registration_to_module(reg: TypeRegistration) -> None:
     """Merge ``reg`` into the live module-level type dicts.
 
-    Mutates :data:`IO_TYPES`, :data:`PROG_TYPES`, :data:`PROTO_TYPES` in
-    place so any code that subsequently consults those dicts sees the
-    new entries. Used by the ``--types-from`` CLI flag to apply
+    Mutates :data:`IO_TYPES`, :data:`PROG_TYPES`, :data:`PROTO_TYPES`,
+    :data:`SYSTEM_TYPES` in place so any code that subsequently consults those
+    dicts sees the new entries. Used by the ``--types-from`` CLI flag to apply
     registrations after the module-level import has already completed.
     """
-    _apply_registration(reg, IO_TYPES, PROG_TYPES, PROTO_TYPES)
+    _apply_registration(reg, IO_TYPES, PROG_TYPES, PROTO_TYPES, SYSTEM_TYPES)
 
 
 def get_io_helper_call(
@@ -448,4 +462,19 @@ def get_proto_helper_call(proto_type: str, instance: int) -> tuple[str, str]:
         raise ValueError(f"Unknown Protocol type: {proto_type}")
 
     info = PROTO_TYPES[proto_type]
+    return info.cpp_class, f"{info.cpp_class}::objectId({instance})"
+
+
+def get_system_helper_call(system_type: str, instance: int) -> tuple[str, str]:
+    """
+    Generate C++ helper function call for a System object.
+
+    :param system_type: System type name
+    :param instance: Instance number
+    :return: Tuple of (cpp_class_name, helper_call)
+    """
+    if system_type not in SYSTEM_TYPES:
+        raise ValueError(f"Unknown System type: {system_type}")
+
+    info = SYSTEM_TYPES[system_type]
     return info.cpp_class, f"{info.cpp_class}::objectId({instance})"

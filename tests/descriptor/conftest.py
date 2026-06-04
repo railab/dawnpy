@@ -305,6 +305,13 @@ def minimal_type_defs() -> dict[str, list[dict[str, object]]]:
             }
             for yaml_type, handler in PROTO_HANDLER_REGISTRY.items()
         ],
+        "system_types": [
+            {
+                "yaml_type": "lte",
+                "cpp_class": "CSystemLte",
+                "header": "dawn/system/lte.hxx",
+            },
+        ],
     }
 
 

@@ -16,9 +16,11 @@ from dawnpy.descriptor.definitions.registry import (
     IO_TYPES,
     PROG_TYPES,
     PROTO_TYPES,
+    SYSTEM_TYPES,
     get_io_helper_call,
     get_prog_helper_call,
     get_proto_helper_call,
+    get_system_helper_call,
 )
 from dawnpy.descriptor.handlers import (
     PROG_HANDLER_REGISTRY,
@@ -411,6 +413,76 @@ class ProtocolObject(DescriptorObject):
         return handler.resolve_bindings(bindings, config)
 
 
+@dataclass(frozen=True)
+class SystemObject(DescriptorObject):
+    """Decoded System object (OBJTYPE_ANY) from descriptor spec."""
+
+    system_type: str
+    instance: int
+    config: dict[str, Any]
+
+    @property
+    def category(self) -> str:
+        """Return object category."""
+        return "SYSTEM"
+
+    @classmethod
+    def from_spec(
+        cls, spec: dict[str, Any], *, strict: bool = True
+    ) -> SystemObject | None:
+        """Construct and validate a System entry from YAML."""
+        sys_id = spec.get("id")
+        if not sys_id:
+            if strict:
+                raise DescriptorDecodeError("System entry is missing id")
+            return None
+        system_type = str(spec.get("type", ""))
+        if not system_type:
+            if strict:
+                raise DescriptorDecodeError(f"System {sys_id} is missing type")
+            return None
+        instance = int(spec.get("instance", 0))
+        config = spec.get("config", {}) or {}
+
+        obj = cls(
+            obj_id=str(sys_id),
+            system_type=system_type,
+            instance=instance,
+            config=config,
+        )
+
+        errors = obj.validate()
+        if errors and strict:
+            raise DescriptorDecodeError(
+                f"System {sys_id} invalid: {', '.join(errors)}"
+            )
+        if errors:
+            return None
+        return obj
+
+    def validate(self) -> list[str]:
+        """Ensure System metadata references a known type."""
+        errors: list[str] = []
+        if not self.obj_id:
+            errors.append("id is required")
+        if self.system_type not in SYSTEM_TYPES:
+            errors.append(f"unknown System type '{self.system_type}'")
+        if self.instance < 0:
+            errors.append("instance must be >= 0")
+        if not isinstance(self.config, dict):
+            errors.append("config must be a mapping")
+        return errors
+
+    def get_header(self) -> str:
+        """Return the C++ header for this System type."""
+        return SYSTEM_TYPES[self.system_type].header
+
+    def get_helper_call(self) -> str:
+        """Return the C++ helper call for this System object."""
+        _, call = get_system_helper_call(self.system_type, self.instance)
+        return call
+
+
 def _is_list_of_dicts(value: Any) -> bool:
     """Return True when value is a list of mappings."""
     if not isinstance(value, list):
@@ -445,6 +517,7 @@ def prepare_spec_instances(spec: dict[str, Any]) -> None:
     _automate_instances(spec.get("ios", []), {})
     _automate_instances(spec.get("programs", []), {})
     _automate_instances(spec.get("protocols", []), {})
+    _automate_instances(spec.get("system", []), {})
 
 
 def decode_objects(
@@ -470,6 +543,11 @@ def decode_objects(
         proto_obj = ProtocolObject.from_spec(proto, strict=strict)
         if proto_obj:
             objects.append(proto_obj)
+
+    for sysobj in spec.get("system", []):
+        sys_obj = SystemObject.from_spec(sysobj, strict=strict)
+        if sys_obj:
+            objects.append(sys_obj)
 
     prog_errors = _validate_program_object_refs(objects)
     if prog_errors and strict:

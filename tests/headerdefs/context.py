@@ -12,6 +12,7 @@ import pytest
 import dawnpy.descriptor.definitions.io_family as builtin_io_mod
 import dawnpy.descriptor.definitions.prog_family as builtin_prog_mod
 import dawnpy.descriptor.definitions.proto_family as builtin_proto_mod
+import dawnpy.descriptor.definitions.system_family as builtin_system_mod
 import dawnpy.headerdefs as headerdefs
 import dawnpy.headerdefs._components as headerdefs_components_mod
 import dawnpy.headerdefs._constants as headerdefs_constants_mod

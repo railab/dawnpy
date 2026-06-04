@@ -19,6 +19,7 @@ from dawnpy.descriptor.definitions.registry import (
     get_io_helper_call,
     get_prog_helper_call,
     get_proto_helper_call,
+    get_system_helper_call,
 )
 
 pytestmark = pytest.mark.usefixtures("source_free_headers")
@@ -420,6 +421,21 @@ class TestGetProtoHelperCall:
         """Test unknown protocol type raises error."""
         with pytest.raises(ValueError, match="Unknown Protocol type"):
             get_proto_helper_call("unknown", 1)
+
+
+class TestGetSystemHelperCall:
+    """Test get_system_helper_call function."""
+
+    def test_lte_system(self):
+        """Test LTE system object helper call."""
+        cpp_class, call = get_system_helper_call("lte", 0)
+        assert cpp_class == "CSystemLte"
+        assert call == "CSystemLte::objectId(0)"
+
+    def test_unknown_system_type(self):
+        """Test unknown system type raises error."""
+        with pytest.raises(ValueError, match="Unknown System type"):
+            get_system_helper_call("unknown", 1)
 
 
 class TestDTypeMapping:
