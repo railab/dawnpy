@@ -5,13 +5,11 @@
 
 """Shared init-value packing for the two CIODummy* handlers."""
 
-import struct
 from typing import Any
-
-import click
 
 from dawnpy.descriptor.config_access import config_field_is_rw
 from dawnpy.descriptor.encoding.io_serialization import _IOSerializeContext
+from dawnpy.descriptor.encoding.scalar import encode_scalar_words
 from dawnpy.descriptor.encoding.words import cfg_id
 
 
@@ -20,36 +18,7 @@ def _pack_init_value(value: Any, dtype_name: str) -> list[int]:
     values = value if isinstance(value, list) else [value]
     out: list[int] = []
     for item in values:
-        if dtype_name == "float":
-            packed = struct.pack("<f", float(item))
-            out.extend(struct.unpack("<I", packed))
-            continue
-        if dtype_name == "double":
-            packed = struct.pack("<d", float(item))
-            out.extend(list(struct.unpack("<II", packed)))
-            continue
-        if dtype_name == "int64":
-            packed = struct.pack("<q", int(item))
-            out.extend(list(struct.unpack("<II", packed)))
-            continue
-        if dtype_name == "uint64":
-            packed = struct.pack("<Q", int(item))
-            out.extend(list(struct.unpack("<II", packed)))
-            continue
-        if dtype_name in (
-            "int32",
-            "int16",
-            "int8",
-            "uint32",
-            "uint16",
-            "uint8",
-            "bool",
-        ):
-            out.append(int(item) & 0xFFFFFFFF)
-            continue
-        raise click.ClickException(
-            f"Unsupported dummy init_value dtype '{dtype_name}'"
-        )
+        out.extend(encode_scalar_words(item, dtype_name))
     return out
 
 

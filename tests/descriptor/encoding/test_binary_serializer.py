@@ -392,7 +392,7 @@ def test_coerce_u32_words_for_dtype_branches():
     assert _coerce_u32_words_for_dtype(True, "bool")[0] == 1
     with pytest.raises(
         click.ClickException,
-        match="Unsupported dummy init_value dtype",
+        match="Unsupported dtype",
     ):
         _coerce_u32_words_for_dtype(1, "block")
 
