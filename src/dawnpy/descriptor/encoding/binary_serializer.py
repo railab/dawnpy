@@ -42,6 +42,7 @@ from dawnpy.descriptor.encoding.prog_serializer import (
     serialize_prog_object,
 )
 from dawnpy.descriptor.encoding.proto_serializer import serialize_proto_object
+from dawnpy.descriptor.encoding.scalar import encode_scalar_words
 from dawnpy.descriptor.encoding.words import cfg_id, dtype_id_by_name
 from dawnpy.descriptor.handlers import IO_HANDLER_REGISTRY
 from dawnpy.descriptor.support.formatting import DescriptorFormatHelper
@@ -139,20 +140,18 @@ _UNSIGNED_DTYPES: frozenset[str] = frozenset(
 def _encode_limit_word(value: Any, dtype_name: str) -> int:
     """Encode one limit value into the uint32 bit pattern matching dtype.
 
-    Mirrors the C++ ``i32ToCfg`` / ``fToCfg`` helpers so that the binary
-    descriptor produces the exact word layout that ``CIOLimits`` reads.
+    Limits are single-word, so only 32-bit dtypes are supported; the actual
+    word encoding is delegated to the shared scalar encoder.
     """
-    import struct
-
-    if dtype_name == "float":
-        return int.from_bytes(struct.pack("<f", float(value)), "little")
-    if dtype_name in _SIGNED_DTYPES:
-        return int.from_bytes(struct.pack("<i", int(value)), "little")
-    if dtype_name in _UNSIGNED_DTYPES:
-        return int(value) & 0xFFFFFFFF
-    raise click.ClickException(
-        f"limits not supported for IO dtype '{dtype_name}'"
-    )
+    if (
+        dtype_name != "float"
+        and dtype_name not in _SIGNED_DTYPES
+        and dtype_name not in _UNSIGNED_DTYPES
+    ):
+        raise click.ClickException(
+            f"limits not supported for IO dtype '{dtype_name}'"
+        )
+    return encode_scalar_words(value, dtype_name)[0]
 
 
 def _limit_value_words(value: Any, dtype_name: str) -> list[int]:
