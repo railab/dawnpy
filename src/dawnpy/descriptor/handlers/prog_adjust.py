@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from dawnpy.descriptor.definitions.type_info import ConfigField
+from dawnpy.descriptor.encoding.scalar import encode_scalar_words
 from dawnpy.descriptor.encoding.words import cfg_id
 from dawnpy.headerdefs.bundle import header_cfg_id
 
@@ -94,7 +95,7 @@ def encode_binary(
     params = config.get("params", {})
     if not isinstance(params, dict):
         return  # pragma: no cover
-    offset = int(params.get("offset", 0))
-    scale = int(params.get("scale", 1))
+    words = encode_scalar_words(params.get("offset", 0), obj.dtype)
+    words += encode_scalar_words(params.get("scale", 1), obj.dtype)
     cfg = header_cfg_id(cpp_class, "cfgParams")
-    items.append((cfg_id(3, prog_cls, 0, False, 2, cfg), [offset, scale]))
+    items.append((cfg_id(3, prog_cls, 0, False, len(words), cfg), words))
