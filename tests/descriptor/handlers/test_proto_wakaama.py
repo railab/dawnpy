@@ -312,6 +312,40 @@ def test_wakaama_generate_cpp_standard_and_custom_objects(generator):
     assert "0x00030007" in text
 
 
+def test_wakaama_generate_cpp_device_battery(generator):
+    from dawnpy.descriptor.handlers import proto_wakaama
+
+    gctx = generator._protocol_config_generator().ctx
+    proto = ProtocolObject(
+        "lwm2m0",
+        "wakaama",
+        0,
+        {
+            "endpoint": "ntfc",
+            "server_host": "127.0.0.1",
+            "server_port": 5683,
+            "local_port": 56830,
+            "lifetime": 60,
+            "device": {
+                "manufacturer": "Dawn",
+                # valid -> emitted
+                "battery_voltage": {"id": "battvolt"},
+                # present but unresolvable -> skipped (if not io_id)
+                "battery_level": {"missing_id": 1},
+                # battery_status absent -> skipped (if ref is None)
+            },
+        },
+        [],
+    )
+    lines = proto_wakaama.generate_cpp("WAKAAMA0", proto, gctx)
+    text = "\n".join(lines)
+
+    assert "CProtoWakaama::cfgIdDeviceBatteryVoltage" in text
+    assert "BATTVOLT," in text
+    assert "cfgIdDeviceBatteryLevel" not in text
+    assert "cfgIdDeviceBatteryStatus" not in text
+
+
 def test_wakaama_generate_cpp_multi_server(generator):
     from dawnpy.descriptor.handlers import proto_wakaama
 
