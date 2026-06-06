@@ -234,6 +234,7 @@ class ProgramObject(DescriptorObject):
     outputs: list[str]
     reset: str | None
     config: dict[str, Any]
+    dtype: str = "uint32"
 
     @property
     def category(self) -> str:
@@ -258,6 +259,7 @@ class ProgramObject(DescriptorObject):
                 )
             return None
         instance = int(spec.get("instance", 0))
+        dtype = str(spec.get("dtype", "uint32")).lower()
         config = spec.get("config", {}) or {}
         inputs = resolve_references(config.get("inputs", []))
         outputs = resolve_references(config.get("outputs", []))
@@ -272,6 +274,7 @@ class ProgramObject(DescriptorObject):
             outputs=outputs,
             reset=reset,
             config=config,
+            dtype=dtype,
         )
 
         errors = obj.validate()

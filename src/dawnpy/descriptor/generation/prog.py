@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from dawnpy.descriptor.definitions.type_info import ConfigField
+from dawnpy.descriptor.encoding.scalar import format_scalar_cpp
 from dawnpy.descriptor.handlers import PROG_HANDLER_REGISTRY
 from dawnpy.descriptor.support.formatting import DescriptorFormatHelper
 from dawnpy.descriptor.support.utils import resolve_reference
@@ -214,17 +215,17 @@ class ProgramConfigGenerator:
         lines: list[str],
         cpp_helper: str,
         field_name: str,
+        obj: ProgramObject,
         config: dict[str, Any],
     ) -> None:
         params = config.get(field_name, {})
         if not isinstance(params, dict):  # pragma: no cover
             params = {}
 
-        offset = int(params.get("offset", 0))
-        scale = int(params.get("scale", 1))
         self._format_helper.append_line(lines, 2, f"{cpp_helper}(),")
-        self._format_helper.append_line(lines, 3, f"{offset},")
-        self._format_helper.append_line(lines, 3, f"{scale},")
+        for raw in (params.get("offset", 0), params.get("scale", 1)):
+            for literal in format_scalar_cpp(raw, obj.dtype):
+                self._format_helper.append_line(lines, 3, f"{literal},")
 
     def _emit_adjust_iobind(  # pragma: no cover
         self,
@@ -367,7 +368,9 @@ class ProgramConfigGenerator:
         elif value_type == "id_array_quads":
             self._emit_id_array_quads(lines, cpp_helper, field_name, config)
         elif value_type == "adjust_params":
-            self._emit_adjust_params(lines, cpp_helper, field_name, config)
+            self._emit_adjust_params(
+                lines, cpp_helper, field_name, obj, config
+            )
         elif value_type == "sequencer_states":
             self._emit_sequencer_states(lines, cpp_helper, field_name, config)
         elif value_type == "switch_inputs":
