@@ -69,6 +69,38 @@ def test_serialize_proto_can_with_objects():
     assert len(words) > 0
 
 
+def test_serialize_proto_wakaama_device_battery():
+    decoder = ObjectIdDecoder()
+    obj_ids = {"battvolt": 0x10000005}
+    words: list[int] = []
+
+    proto = ProtocolObject(
+        obj_id="lwm2m0",
+        proto_type="wakaama",
+        instance=0,
+        config={
+            "endpoint": "ntfc",
+            "server_host": "127.0.0.1",
+            "server_port": 5683,
+            "local_port": 56830,
+            "lifetime": 60,
+            "device": {
+                "manufacturer": "Dawn",
+                # valid -> encoded as one objid word
+                "battery_voltage": {"id": "battvolt"},
+                # present but unresolvable -> skipped (if not io_id)
+                "battery_level": {"missing_id": 1},
+                # battery_status absent -> skipped (if ref is None)
+            },
+        },
+        bindings=[],
+    )
+
+    serialize_proto_object(words, proto, obj_ids, decoder)
+    assert obj_ids["lwm2m0"] != 0
+    assert len(words) > 0
+
+
 def test_serialize_proto_modbus_with_registers_and_fallback_bindings():
     decoder = ObjectIdDecoder()
     obj_ids = {

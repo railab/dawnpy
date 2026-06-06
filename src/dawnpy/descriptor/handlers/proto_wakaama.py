@@ -52,6 +52,18 @@ cfg_id_helpers: dict[str, tuple[str, str]] = {
         "CProtoWakaama",
         "cfgIdDeviceFirmwareVersion",
     ),
+    "wakaama_device_battery_voltage": (
+        "CProtoWakaama",
+        "cfgIdDeviceBatteryVoltage",
+    ),
+    "wakaama_device_battery_level": (
+        "CProtoWakaama",
+        "cfgIdDeviceBatteryLevel",
+    ),
+    "wakaama_device_battery_status": (
+        "CProtoWakaama",
+        "cfgIdDeviceBatteryStatus",
+    ),
     "wakaama_server": ("CProtoWakaama", "cfgIdServer"),
 }
 dtype_names: dict[str, str] = {
@@ -637,6 +649,8 @@ def encode_binary(ctx: _ProtoSerializeContext) -> None:
     _append_device_string(
         ctx, "firmware_version", "wakaama_device_firmware_version", 10
     )
+    for _key, _cfg_key, _cfg_default in _device_iobind_fields():
+        _append_device_iobind(ctx, _key, _cfg_key, _cfg_default)
 
     for iobind_words in _iobind_word_blocks(ctx):
         append_cfg_item(
@@ -664,6 +678,7 @@ def generate_cpp(
     device_fields = _cpp_device_fields()
     server_blocks = _server_cpp_word_blocks(config, fmt)
     iobind_blocks = _iobind_cpp_word_blocks(config, gctx)
+    device_iobinds = _device_iobind_cpp_entries(config, gctx)
 
     config_count = _cpp_config_count(
         config,
@@ -671,10 +686,11 @@ def generate_cpp(
         device_fields,
         len(server_blocks),
         len(iobind_blocks),
-    )
+    ) + len(device_iobinds)
     fmt.append_line(lines, 1, f"{macro_name}, {config_count},")
     _append_cpp_scalar_configs(lines, fmt, config, scalar_fields)
     _append_cpp_device_configs(lines, fmt, config, device_fields)
+    _append_cpp_device_iobinds(lines, fmt, device_iobinds)
     _append_cpp_int_blocks(
         lines, fmt, "CProtoWakaama::cfgIdServer", server_blocks
     )
@@ -718,6 +734,47 @@ def _cpp_device_fields() -> list[tuple[str, str]]:
             "CProtoWakaama::cfgIdDeviceFirmwareVersion",
         ),
     ]
+
+
+def _device_iobind_fields() -> list[tuple[str, str, int]]:
+    """Device-object resources backed by an IO reference in the device: block.
+
+    Each entry is (config key, cfgId helper / cfg helper key, binary cfg id).
+    """
+    return [
+        ("battery_voltage", "wakaama_device_battery_voltage", 12),
+        ("battery_level", "wakaama_device_battery_level", 13),
+        ("battery_status", "wakaama_device_battery_status", 14),
+    ]
+
+
+def _device_iobind_cpp_entries(
+    config: dict[str, Any], gctx: "ProtoGeneratorContext"
+) -> list[tuple[str, str]]:
+    """Resolve device IO-bind references to (cfgId helper, io-id symbol)."""
+    helpers = {
+        "battery_voltage": "CProtoWakaama::cfgIdDeviceBatteryVoltage",
+        "battery_level": "CProtoWakaama::cfgIdDeviceBatteryLevel",
+        "battery_status": "CProtoWakaama::cfgIdDeviceBatteryStatus",
+    }
+    entries: list[tuple[str, str]] = []
+    for key, _cfg_key, _cfg_default in _device_iobind_fields():
+        ref = _device_config_value(config, key)
+        if ref is None:
+            continue
+        io_id = gctx.resolve_reference(ref)
+        if not io_id:
+            continue
+        entries.append((helpers[key], io_id.upper()))
+    return entries
+
+
+def _append_cpp_device_iobinds(
+    lines: list[str], fmt: Any, entries: list[tuple[str, str]]
+) -> None:
+    for helper, io_id in entries:
+        fmt.append_line(lines, 2, f"{helper}(),")
+        fmt.append_line(lines, 3, f"{io_id},")
 
 
 def _cpp_config_count(
@@ -935,6 +992,27 @@ def _append_device_string(
             ctx.cfg_id(cfg_key, cfg_default),
         ),
         packed,
+    )
+
+
+def _append_device_iobind(
+    ctx: _ProtoSerializeContext,
+    key: str,
+    cfg_key: str,
+    cfg_default: int,
+) -> None:
+    """Encode a device-object resource bound to a descriptor IO."""
+    ref = _device_config_value(ctx.config, key)
+    if ref is None:
+        return
+    io_id = resolve_reference(ref)
+    if not io_id:
+        return
+    word = ctx.obj_ids[io_id] if io_id in ctx.obj_ids else 0
+    append_cfg_item(
+        ctx.items,
+        cfg_id(2, ctx.cls, 0, False, 1, ctx.cfg_id(cfg_key, cfg_default)),
+        [word],
     )
 
 
