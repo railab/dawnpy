@@ -213,6 +213,56 @@ class TestIoHandlers:
             ("dummy_list_config", "init_value"): True
         }
 
+    def test_config_rw_grants_program_target_and_unknown(self):
+        """A writable config IO grants rw on a program field; an unresolved
+        target id is skipped."""
+        adjust_obj = ProgramObject.from_spec(
+            {
+                "id": "temp_adjust",
+                "type": "adjust",
+                "dtype": "float",
+                "config": {
+                    "inputs": ["raw"],
+                    "outputs": ["cal"],
+                    "params": {"offset": -8.7, "scale": 1.0},
+                },
+            }
+        )
+        assert adjust_obj is not None
+        granting_cfg = IoObject(
+            obj_id="cfg_offset",
+            io_type="config",
+            instance=0,
+            dtype="float",
+            tags=[],
+            config={"objid_ref": "temp_adjust", "objcfg_ref": "params"},
+            timestamp=False,
+            notify=False,
+            rw=True,
+            subtype=None,
+            variant=None,
+        )
+        # objid_ref resolves to no object -> _target_config_field returns None.
+        unknown_cfg = IoObject(
+            obj_id="cfg_unknown",
+            io_type="config",
+            instance=1,
+            dtype="float",
+            tags=[],
+            config={"objid_ref": "missing", "objcfg_ref": "params"},
+            timestamp=False,
+            notify=False,
+            rw=True,
+            subtype=None,
+            variant=None,
+        )
+        objects = {
+            o.obj_id: o for o in [adjust_obj, granting_cfg, unknown_cfg]
+        }
+        assert build_config_rw_grants(objects) == {
+            ("temp_adjust", "params"): True
+        }
+
     def test_generate_config_io_program_sequencer_start_index(self):
         """Test ConfigIO can target sequencer start_index config field."""
         generator = DescriptorGenerator()

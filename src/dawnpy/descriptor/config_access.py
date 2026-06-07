@@ -46,22 +46,45 @@ def config_field_is_rw(
     return bool(grants.get((obj_id, field_name), False))
 
 
+def _target_config_field(
+    target: DescriptorObject | None, objcfg_ref: str
+) -> ConfigField | None:
+    """Resolve the config field a config IO targets on an IO or program."""
+    from dawnpy.descriptor.definitions.objects import IoObject, ProgramObject
+    from dawnpy.descriptor.handlers import (
+        IO_HANDLER_REGISTRY,
+        PROG_HANDLER_REGISTRY,
+    )
+
+    # A config IO can target either an IO's or a program's config field.
+    if isinstance(target, IoObject):
+        fields = IO_HANDLER_REGISTRY.get(str(target.io_type), None)
+        field_defs = fields.config_fields() if fields is not None else []
+        config = target.config
+    elif isinstance(target, ProgramObject):
+        progs = PROG_HANDLER_REGISTRY.get(str(target.prog_type), None)
+        field_defs = progs.config_fields() if progs is not None else []
+        config = target.config
+    else:
+        return None
+
+    if not isinstance(config, Mapping):
+        config = {}
+    return _choose_config_field(field_defs, config, objcfg_ref)
+
+
 def build_config_rw_grants(
     objects: Mapping[str, DescriptorObject],
 ) -> ConfigRwGrants:
     """Return fields made writable by writable ConfigIO objects."""
     from dawnpy.descriptor.definitions.objects import IoObject
-    from dawnpy.descriptor.handlers import IO_HANDLER_REGISTRY
 
     grants: ConfigRwGrants = {}
 
     for obj in objects.values():
         if not isinstance(obj, IoObject):
             continue
-
-        if obj.io_type != "config":
-            continue
-        if not obj.rw:
+        if obj.io_type != "config" or not obj.rw:
             continue
 
         config = obj.config
@@ -72,18 +95,8 @@ def build_config_rw_grants(
         if not target_id:
             continue
 
-        target = objects.get(target_id)
-        if not isinstance(target, IoObject):
-            continue
-
-        target_config = target.config
-        if not isinstance(target_config, Mapping):
-            target_config = {}
-
-        handler = IO_HANDLER_REGISTRY.get(str(target.io_type))
-        fields = handler.config_fields() if handler is not None else []
-        field = _choose_config_field(
-            fields, target_config, str(config.get("objcfg_ref", ""))
+        field = _target_config_field(
+            objects.get(target_id), str(config.get("objcfg_ref", ""))
         )
         if field is None:
             continue

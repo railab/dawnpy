@@ -84,6 +84,7 @@ class DescriptorGenerator:
             config_loader=self.config_loader,
             prog_types=dict(PROG_TYPES),
             format_helper=self._format_helper,
+            config_rw_grants=lambda: self.config_rw_grants,
         )
 
     def _build_protocol_config_generator(  # pragma: no cover

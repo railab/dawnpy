@@ -224,8 +224,9 @@ def _program_objcfg_line(  # pragma: no cover
     handler = PROG_HANDLER_REGISTRY.get(ref_obj.prog_type)
     if handler is None:
         return None
+    rw = config_field_is_rw(gctx.config_rw_grants, ref_obj.obj_id, objcfg_ref)
     return handler.config_reference_cpp_line(
-        ref_obj, objcfg_ref, gctx.config_loader
+        ref_obj, objcfg_ref, gctx.config_loader, rw
     )
 
 

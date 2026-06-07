@@ -42,6 +42,9 @@ def config_fields() -> list[ConfigField]:
             name="params",
             cpp_helper="CProgAdjust::cfgParams",
             value_type="adjust_params",
+            # cfgParams(bool rw): a writable config IO targeting these params
+            # makes them runtime-writable (CProgAdjust::onSetObjConfig).
+            params=["rw"],
         ),
     ]
 

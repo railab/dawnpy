@@ -127,6 +127,7 @@ class ProgHandler(Protocol):
         obj: ProgramObject,
         field_name: str,
         config_loader: Any,
+        rw: bool = False,
     ) -> str | None:
         """Return cfgId line when another object references a config field."""
         raise NotImplementedError
@@ -409,6 +410,7 @@ class ProgHandlerAdapter(ModuleHandlerAdapter):
         obj: ProgramObject,
         field_name: str,
         config_loader: Any,
+        rw: bool = False,
     ) -> str | None:
         """Return cfgId line when ConfigIO references a program field."""
         custom = getattr(self._module, "config_reference_cpp_line", None)
@@ -419,7 +421,10 @@ class ProgHandlerAdapter(ModuleHandlerAdapter):
         field = next((f for f in field_defs if f.name == field_name), None)
         if field is None or not field.cpp_helper:
             return None
-        return f"{field.cpp_helper}(),"
+        # A field whose helper takes an rw flag (params lists "rw") gets the
+        # write grant computed by the caller; otherwise emit a bare call.
+        arg = "true" if (rw and "rw" in field.params) else ""
+        return f"{field.cpp_helper}({arg}),"
 
     def validate_object(self, obj: ProgramObject) -> list[str]:
         """Return program validation errors owned by this handler."""

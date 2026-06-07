@@ -7,8 +7,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from dawnpy.descriptor.config_access import (
+    ConfigRwGrants,
+    config_field_is_rw,
+)
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.scalar import format_scalar_cpp
 from dawnpy.descriptor.handlers import PROG_HANDLER_REGISTRY
@@ -44,11 +49,13 @@ class ProgramConfigGenerator:
         config_loader: Any,
         prog_types: dict[str, Any],
         format_helper: DescriptorFormatHelper | None = None,
+        config_rw_grants: Callable[[], ConfigRwGrants] | None = None,
     ) -> None:
         """Initialize with shared config loader and program type map."""
         self._config_loader = config_loader
         self._prog_types = prog_types
         self._format_helper = format_helper or DescriptorFormatHelper()
+        self._config_rw_grants = config_rw_grants or (lambda: {})
 
     def _emit_id_array_pairs(  # pragma: no cover
         self,
@@ -222,7 +229,14 @@ class ProgramConfigGenerator:
         if not isinstance(params, dict):  # pragma: no cover
             params = {}
 
-        self._format_helper.append_line(lines, 2, f"{cpp_helper}(),")
+        # rw is true only when a writable config IO targets these params; the
+        # config IO's reference emits the same cfgParams(rw) so the runtime
+        # cfg-id lookup matches.
+        rw = config_field_is_rw(
+            self._config_rw_grants(), obj.obj_id, field_name
+        )
+        rw_arg = "true" if rw else ""
+        self._format_helper.append_line(lines, 2, f"{cpp_helper}({rw_arg}),")
         for raw in (params.get("offset", 0), params.get("scale", 1)):
             for literal in format_scalar_cpp(raw, obj.dtype):
                 self._format_helper.append_line(lines, 3, f"{literal},")
