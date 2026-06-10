@@ -52,6 +52,9 @@ from dawnpy.descriptor.encoding.binary_serializer import (
     _serialize_metadata,
 )
 from dawnpy.descriptor.encoding.binary_serializer import (
+    generate_descriptor_binaries as _generate_descriptor_binaries,
+)
+from dawnpy.descriptor.encoding.binary_serializer import (
     generate_descriptor_binary as _generate_descriptor_binary,
 )
 from dawnpy.descriptor.encoding.packager import (
