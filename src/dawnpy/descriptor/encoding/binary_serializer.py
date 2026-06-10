@@ -328,16 +328,23 @@ def _pre_register_program_ids(
 # ---------------------------------------------------------------------------
 
 
-def generate_descriptor_binary(
-    yaml_path: Path,
-    kconfig: str | None,
-) -> bytes:
-    """Render YAML descriptor spec to a binary blob with CRC footer."""
-    spec = load_yaml_with_vars(
-        str(yaml_path),
-        kconfig_path=kconfig,
-        resolve_kconfig_values=False,
-    )
+def _is_multi_descriptor_spec(spec: dict[str, Any]) -> bool:
+    """Return True if the spec uses multi-descriptor format."""
+    return "descriptor0" in spec
+
+
+def _get_descriptor_indices(spec: dict[str, Any]) -> list[int]:
+    """Return sorted descriptor indices from a multi-descriptor spec."""
+    indices = []
+    i = 0
+    while f"descriptor{i}" in spec:
+        indices.append(i)
+        i += 1
+    return indices
+
+
+def _serialize_descriptor_spec(spec: dict[str, Any]) -> bytes:
+    """Serialize a single descriptor spec dict into a binary blob with CRC."""
     objects = decode_objects(spec, strict=True)
     object_map = {
         obj.obj_id: obj for obj in objects if isinstance(obj, DescriptorObject)
@@ -375,3 +382,53 @@ def generate_descriptor_binary(
     words.append(0)
     binary = pack_u32_words(words)
     return fill_crc32_footer(binary)
+
+
+def generate_descriptor_binary(
+    yaml_path: Path,
+    kconfig: str | None,
+) -> bytes:
+    """Render YAML descriptor spec to a binary blob with CRC footer.
+
+    For backwards compatibility, single-descriptor YAML returns a single
+    binary blob. Use :func:`generate_descriptor_binaries` for multi-slot
+    output.
+    """
+    spec = load_yaml_with_vars(
+        str(yaml_path),
+        kconfig_path=kconfig,
+        resolve_kconfig_values=False,
+    )
+
+    if _is_multi_descriptor_spec(spec):
+        # Multi-descriptor: serialize only slot 0 for backwards compat.
+        spec = spec["descriptor0"]
+
+    return _serialize_descriptor_spec(spec)
+
+
+def generate_descriptor_binaries(
+    yaml_path: Path,
+    kconfig: str | None,
+) -> dict[int, bytes]:
+    """Render a (possibly multi-descriptor) YAML spec to per-slot binaries.
+
+    For a single-descriptor YAML, returns ``{0: bytes}``.
+    For a multi-descriptor YAML (``descriptor0:``, ``descriptor1:``, ...),
+    returns one entry per slot index.
+
+    Each binary blob has a CRC32 footer.
+    """
+    spec = load_yaml_with_vars(
+        str(yaml_path),
+        kconfig_path=kconfig,
+        resolve_kconfig_values=False,
+    )
+
+    if not _is_multi_descriptor_spec(spec):
+        return {0: _serialize_descriptor_spec(spec)}
+
+    result: dict[int, bytes] = {}
+    for idx in _get_descriptor_indices(spec):
+        result[idx] = _serialize_descriptor_spec(spec[f"descriptor{idx}"])
+    return result

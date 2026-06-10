@@ -620,3 +620,209 @@ def test_generate_descriptor_binary_unknown_object_raises(monkeypatch):
     )
     with pytest.raises(click.ClickException, match="supports IO/PROG/PROTO"):
         _generate_descriptor_binary(Path("/tmp/x.yaml"), None)
+
+
+def test_generate_descriptor_binaries_single_slot():
+    """Single-descriptor YAML returns slot 0 only."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yaml_path = Path(tmpdir) / "single.yaml"
+        yaml_path.write_text(
+            "ios:\n"
+            "  - id: dummy0\n"
+            "    type: dummy\n"
+            "    dtype: uint32\n"
+            "    config:\n"
+            "      init_value: 42\n",
+            encoding="utf-8",
+        )
+        binaries = _generate_descriptor_binaries(yaml_path, None)
+
+        assert len(binaries) == 1
+        assert 0 in binaries
+        assert nuttx_crc32(binaries[0]) == 0
+        words = list(struct.unpack(f"<{len(binaries[0]) // 4}I", binaries[0]))
+        assert words[0] == 0x0D0A0302
+
+
+def test_generate_descriptor_binaries_two_slots():
+    """Multi-descriptor YAML returns one binary per slot."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yaml_path = Path(tmpdir) / "multi.yaml"
+        yaml_path.write_text(
+            "descriptor0:\n"
+            "  ios:\n"
+            "    - id: dummy0\n"
+            "      type: dummy\n"
+            "      dtype: uint32\n"
+            "      config:\n"
+            "        init_value: 10\n"
+            "descriptor1:\n"
+            "  ios:\n"
+            "    - id: dummy1\n"
+            "      type: dummy\n"
+            "      dtype: uint32\n"
+            "      config:\n"
+            "        init_value: 20\n",
+            encoding="utf-8",
+        )
+        binaries = _generate_descriptor_binaries(yaml_path, None)
+
+        assert len(binaries) == 2
+        assert 0 in binaries
+        assert 1 in binaries
+
+        # Both slots have valid CRC.
+        assert nuttx_crc32(binaries[0]) == 0
+        assert nuttx_crc32(binaries[1]) == 0
+
+        # Slot 0 has init_value 10, slot 1 has init_value 20.
+        words0 = list(struct.unpack(f"<{len(binaries[0]) // 4}I", binaries[0]))
+        words1 = list(struct.unpack(f"<{len(binaries[1]) // 4}I", binaries[1]))
+        assert 10 in words0
+        assert 20 in words1
+        assert 10 not in words1
+        assert 20 not in words0
+
+
+def test_generate_descriptor_binaries_three_slots():
+    """Three contiguous descriptor slots."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yaml_path = Path(tmpdir) / "three.yaml"
+        parts = []
+        for i in range(3):
+            parts.append(
+                f"descriptor{i}:\n"
+                f"  ios:\n"
+                f"    - id: dummy{i}\n"
+                f"      type: dummy\n"
+                f"      dtype: uint32\n"
+                f"      config:\n"
+                f"        init_value: {i * 10}\n"
+            )
+        yaml_path.write_text("".join(parts), encoding="utf-8")
+
+        binaries = _generate_descriptor_binaries(yaml_path, None)
+        assert len(binaries) == 3
+        for i in range(3):
+            assert i in binaries
+            assert nuttx_crc32(binaries[i]) == 0
+
+
+def test_generate_descriptor_binary_backwards_compat_multi():
+    """generate_descriptor_binary on multi-descriptor returns slot 0 only."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yaml_path = Path(tmpdir) / "multi.yaml"
+        yaml_path.write_text(
+            "descriptor0:\n"
+            "  ios:\n"
+            "    - id: dummy0\n"
+            "      type: dummy\n"
+            "      dtype: uint32\n"
+            "      config:\n"
+            "        init_value: 33\n"
+            "descriptor1:\n"
+            "  ios:\n"
+            "    - id: dummy1\n"
+            "      type: dummy\n"
+            "      dtype: uint32\n"
+            "      config:\n"
+            "        init_value: 44\n",
+            encoding="utf-8",
+        )
+        binary = _generate_descriptor_binary(yaml_path, None)
+        assert nuttx_crc32(binary) == 0
+        words = list(struct.unpack(f"<{len(binary) // 4}I", binary))
+        assert 33 in words
+        assert 44 not in words
+
+
+def test_binary_command_multi_slot_output():
+    """CLI produces slot0/slot1 files for multi-descriptor YAML."""
+    runner = CliRunner()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yaml_path = Path(tmpdir) / "multi.yaml"
+        yaml_path.write_text(
+            "descriptor0:\n"
+            "  ios:\n"
+            "    - id: d0\n"
+            "      type: dummy\n"
+            "      dtype: uint32\n"
+            "      config:\n"
+            "        init_value: 5\n"
+            "descriptor1:\n"
+            "  ios:\n"
+            "    - id: d1\n"
+            "      type: dummy\n"
+            "      dtype: uint32\n"
+            "      config:\n"
+            "        init_value: 7\n",
+            encoding="utf-8",
+        )
+
+        out_base = Path(tmpdir) / "desc.bin"
+        result = runner.invoke(
+            cmd_desc_bin, [str(yaml_path), "-o", str(out_base)]
+        )
+
+        assert result.exit_code == 0
+        assert "slot 0" in result.output
+        assert "slot 1" in result.output
+
+        slot0_path = Path(tmpdir) / "desc_slot0.bin"
+        slot1_path = Path(tmpdir) / "desc_slot1.bin"
+        assert slot0_path.exists()
+        assert slot1_path.exists()
+
+        assert nuttx_crc32(slot0_path.read_bytes()) == 0
+        assert nuttx_crc32(slot1_path.read_bytes()) == 0
+
+
+def test_binary_command_multi_slot_default_names():
+    """Multi-slot without -o uses descriptor_slotN.bin default names."""
+    runner = CliRunner()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yaml_path = Path(tmpdir) / "multi.yaml"
+        yaml_path.write_text(
+            "descriptor0:\n"
+            "  ios:\n"
+            "    - id: d0\n"
+            "      type: dummy\n"
+            "      dtype: uint32\n"
+            "descriptor1:\n"
+            "  ios:\n"
+            "    - id: d1\n"
+            "      type: dummy\n"
+            "      dtype: uint32\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(cmd_desc_bin, [str(yaml_path)])
+
+        assert result.exit_code == 0
+        assert (Path(tmpdir) / "descriptor_slot0.bin").exists()
+        assert (Path(tmpdir) / "descriptor_slot1.bin").exists()
+
+
+def test_generate_descriptor_binaries_gap_stops():
+    """Non-contiguous descriptor indices: gap stops enumeration."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yaml_path = Path(tmpdir) / "gap.yaml"
+        yaml_path.write_text(
+            "descriptor0:\n"
+            "  ios:\n"
+            "    - id: d0\n"
+            "      type: dummy\n"
+            "      dtype: uint32\n"
+            "descriptor2:\n"
+            "  ios:\n"
+            "    - id: d2\n"
+            "      type: dummy\n"
+            "      dtype: uint32\n",
+            encoding="utf-8",
+        )
+        binaries = _generate_descriptor_binaries(yaml_path, None)
+
+        # Only slot 0 — gap at descriptor1 stops enumeration.
+        assert len(binaries) == 1
+        assert 0 in binaries
+        assert 1 not in binaries
