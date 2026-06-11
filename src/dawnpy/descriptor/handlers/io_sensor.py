@@ -14,7 +14,9 @@ nuttx_requirements: tuple[str, ...] = ("CONFIG_SENSORS",)
 no_fields: bool = True
 pass_through: bool = False
 dtype: str | None = None
-variant_dtypes: dict[str, str] = {}
+# GNSS sub-IOs carry non-float fields: time as seconds (uint64) and the
+# satellite count (uint32). Other subtypes default to the float sensor data.
+variant_dtypes: dict[str, str] = {"gnss_time": "uint64", "gnss_sats": "uint32"}
 
 
 def config_fields() -> list[ConfigField]:

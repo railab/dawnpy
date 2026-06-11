@@ -58,9 +58,51 @@ def _lte_fields(cpp_class: str) -> list[ConfigField]:
     ]
 
 
+def _gnss_fields(cpp_class: str) -> list[ConfigField]:
+    """Config items for the GNSS coexistence manager (cls = SYS_CLASS_GNSS)."""
+    return [
+        ConfigField(
+            name="mode",
+            cpp_helper=f"{cpp_class}::cfgIdMode",
+            value_type="int",
+        ),
+        ConfigField(
+            name="settle",
+            cpp_helper=f"{cpp_class}::cfgIdSettle",
+            value_type="int",
+        ),
+        ConfigField(
+            name="acquire",
+            cpp_helper=f"{cpp_class}::cfgIdAcquire",
+            value_type="int",
+        ),
+        ConfigField(
+            name="retry",
+            cpp_helper=f"{cpp_class}::cfgIdRetry",
+            value_type="int",
+        ),
+        ConfigField(
+            name="max_attempts",
+            cpp_helper=f"{cpp_class}::cfgIdMaxAttempts",
+            value_type="int",
+        ),
+        ConfigField(
+            name="rearm",
+            cpp_helper=f"{cpp_class}::cfgIdRearm",
+            value_type="int",
+        ),
+        ConfigField(
+            name="enabled",
+            cpp_helper=f"{cpp_class}::cfgIdEnabled",
+            value_type="bool",
+        ),
+    ]
+
+
 # yaml_type -> builder(cpp_class) -> config field list
 _SYSTEM_FIELDS: dict[str, Callable[[str], list[ConfigField]]] = {
     "lte": _lte_fields,
+    "gnss": _gnss_fields,
 }
 
 

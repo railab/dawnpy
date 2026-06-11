@@ -401,7 +401,10 @@ def get_io_helper_call(
     elif io_type in ("sensor", "sensor_producer") and subtype:
         # Sensor-like IOs use subtype-specific helpers:
         # CIOSensor::objectIdTemp / CIOSensorProducer::objectIdTemp.
-        subtype_cap = subtype.capitalize()
+        # Convert snake_case to CamelCase (gnss_time -> GnssTime) to match the
+        # C++ objectId<Suffix> helpers (mirrors the subtype derivation in
+        # headerdefs._typespec via _camel_to_snake).
+        subtype_cap = "".join(word.capitalize() for word in subtype.split("_"))
         helper = info.helper_func.format(
             cpp_class=cpp_class, subtype=subtype_cap
         )
