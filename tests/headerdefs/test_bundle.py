@@ -264,14 +264,21 @@ def test_builtin_types_loader_uses_header_type_defs(monkeypatch):
                     "yaml_type": "lte",
                     "cpp_class": "CSystemLte",
                     "header": "dawn/system/lte.hxx",
-                }
+                },
+                {
+                    "yaml_type": "gnss",
+                    "cpp_class": "CSystemGnss",
+                    "header": "dawn/system/gnss.hxx",
+                },
             ],
         },
     )
     assert "x" in builtin_io_mod.build_registration(defs).io_types
     assert "p" in builtin_prog_mod.build_registration(defs).prog_types
     assert "r" in builtin_proto_mod.build_registration(defs).proto_types
-    assert "lte" in builtin_system_mod.build_registration(defs).system_types
+    system_reg = builtin_system_mod.build_registration(defs)
+    assert "lte" in system_reg.system_types
+    assert "gnss" in system_reg.system_types
 
 
 def test_builtin_types_loader_raises_on_invalid_type_containers(monkeypatch):

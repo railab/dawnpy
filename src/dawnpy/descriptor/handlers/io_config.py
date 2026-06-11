@@ -244,6 +244,31 @@ def _io_objcfg_line(
     return _cpp_helper_call(field, ref_obj, ref_config.get(field.name), rw)
 
 
+def _system_objcfg_line(  # pragma: no cover
+    ref_obj: Any,
+    objcfg_ref: str,
+    gctx: IoGeneratorContext,
+) -> str | None:
+    """Emit cfgIdXxx for a SYSTEM object's referenced config field.
+
+    Lets a ``config`` IO target a system manager (e.g. the GNSS manager's
+    ``enabled`` switch) so its config item can be driven over LwM2M, mirroring
+    the IO/program reference paths.
+    """
+    from dawnpy.descriptor.definitions.registry import SYSTEM_TYPES
+
+    info = SYSTEM_TYPES.get(ref_obj.system_type)
+    if info is None:
+        return None
+    field = _choose_config_field(
+        list(info.config_fields), ref_obj.config, objcfg_ref
+    )
+    if field is None:
+        return None
+    rw = config_field_is_rw(gctx.config_rw_grants, ref_obj.obj_id, field.name)
+    return _cpp_helper_call(field, ref_obj, ref_obj.config.get(field.name), rw)
+
+
 def generate_cpp(  # noqa: C901  # pragma: no cover
     macro_name: str, obj: IoObject, gctx: IoGeneratorContext
 ) -> list[str]:
@@ -265,6 +290,9 @@ def generate_cpp(  # noqa: C901  # pragma: no cover
     from dawnpy.descriptor.definitions.objects import (
         ProgramObject as _ProgramObject,
     )
+    from dawnpy.descriptor.definitions.objects import (
+        SystemObject as _SystemObject,
+    )
 
     cfg_id_line: str | None = None
     if isinstance(ref_obj, _IoObject):
@@ -272,6 +300,9 @@ def generate_cpp(  # noqa: C901  # pragma: no cover
     elif isinstance(ref_obj, _ProgramObject):
         if objcfg_ref:
             cfg_id_line = _program_objcfg_line(ref_obj, objcfg_ref, gctx)
+    elif isinstance(ref_obj, _SystemObject):
+        if objcfg_ref:
+            cfg_id_line = _system_objcfg_line(ref_obj, objcfg_ref, gctx)
 
     if cfg_id_line is None:
         fmt.append_line(lines, 1, f"{macro_name}, 0,")

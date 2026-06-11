@@ -323,8 +323,17 @@ class DescriptorValidator:
         dtype_name: str,
         yaml_path: Path,
         enabled_configs: set[str],
+        subtype: str | None = None,
     ) -> list[ValidationError]:
         """Validate one sensor IO dtype against NuttX sensor data Kconfig."""
+        # Some sensor subtypes carry non-float fields and declare their own
+        # dtype via the handler's variant_dtypes (e.g. GNSS time -> uint64,
+        # satellites -> uint32). Those are exempt from the float requirement.
+        from dawnpy.descriptor.handlers import io_sensor
+
+        if subtype and io_sensor.variant_dtypes.get(subtype) == dtype_name:
+            return []
+
         sensors_use_b16 = "CONFIG_SENSORS_USE_B16" in enabled_configs
         expected_dtype = "b16" if sensors_use_b16 else "float"
         expected_config = (
@@ -400,9 +409,14 @@ class DescriptorValidator:
                 continue
 
             if io.get("type") in ("sensor", "sensor_producer"):
+                subtype = io.get("subtype")
                 errors.extend(
                     self._validate_sensor_yaml_dtype(
-                        io_id, dtype_name, yaml_path, enabled_configs
+                        io_id,
+                        dtype_name,
+                        yaml_path,
+                        enabled_configs,
+                        str(subtype) if subtype is not None else None,
                     )
                 )
 

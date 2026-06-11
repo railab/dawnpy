@@ -550,6 +550,34 @@ class TestValidateBasic:
             "CONFIG_SENSORS_USE_FLOAT" in e.message for e in result.errors
         )
 
+    def test_validate_allows_sensor_subtype_variant_dtype(
+        self, validator, temp_config_dir
+    ):
+        """Sensor subtypes with a variant dtype skip the float rule."""
+        descriptor = temp_config_dir / "descriptor.cxx"
+        descriptor.write_text('#include "dawn/io/sensor.hxx"\n')
+
+        defconfig = temp_config_dir / "defconfig"
+        defconfig.write_text(
+            "CONFIG_DAWN_IO_SENSOR=y\n"
+            "CONFIG_DAWN_DTYPE_UINT64=y\n"
+            "CONFIG_SENSORS=y\n"
+        )
+
+        descriptor_yaml = temp_config_dir / "descriptor.yaml"
+        descriptor_yaml.write_text(
+            "ios:\n"
+            "  - id: gnss_time1\n"
+            "    type: sensor\n"
+            "    subtype: gnss_time\n"
+            "    instance: 0\n"
+            "    dtype: uint64\n"
+        )
+
+        result = validator.validate(str(temp_config_dir))
+
+        assert result.valid
+
     def test_validate_fails_when_sensor_uses_float_with_nuttx_b16(
         self, validator, temp_config_dir
     ):
