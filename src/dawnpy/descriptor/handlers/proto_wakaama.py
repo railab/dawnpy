@@ -256,6 +256,11 @@ def config_fields() -> list[ConfigField]:
             cpp_helper="CProtoWakaama::cfgIdLifetime",
             value_type="uint32",
         ),
+        ConfigField(
+            name="queue_mode",
+            cpp_helper="CProtoWakaama::cfgIdQueueMode",
+            value_type="uint16",
+        ),
         ConfigField(name="servers", nested=True),
         ConfigField(name="device", nested=True),
         ConfigField(name="objects", nested=True),
@@ -273,6 +278,9 @@ def validate_object(obj: Any) -> list[str]:
     )
     _validate_uint_field(
         errors, obj.config, "lifetime", "config.lifetime", _UINT32_MAX
+    )
+    _validate_uint_field(
+        errors, obj.config, "queue_mode", "config.queue_mode", _UINT16_MAX
     )
     _validate_servers(errors, obj.config)
 
@@ -703,6 +711,7 @@ def _cpp_scalar_fields(config: dict[str, Any]) -> list[tuple[str, str, str]]:
     scalar_fields = [
         ("endpoint", "CProtoWakaama::cfgIdEndpoint", "string"),
         ("local_port", "CProtoWakaama::cfgIdLocalPort", "number"),
+        ("queue_mode", "CProtoWakaama::cfgIdQueueMode", "number"),
     ]
     if not _server_entries(config):
         scalar_fields.extend(
@@ -809,8 +818,11 @@ def _append_cpp_scalar_configs(
             fmt.append_line(lines, 2, f"{helper}({len(packed)}),")
             fmt.append_words(lines, packed, level=3)
         else:
+            value = config[key]
+            if isinstance(value, bool):
+                value = int(value)
             fmt.append_line(lines, 2, f"{helper}(),")
-            fmt.append_line(lines, 3, f"{fmt.format_numeric(config[key])},")
+            fmt.append_line(lines, 3, f"{fmt.format_numeric(value)},")
 
 
 def _append_cpp_device_configs(

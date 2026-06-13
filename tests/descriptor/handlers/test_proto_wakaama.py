@@ -312,6 +312,20 @@ def test_wakaama_generate_cpp_standard_and_custom_objects(generator):
     assert "0x00030007" in text
 
 
+def test_wakaama_generate_cpp_queue_mode(generator):
+    from dawnpy.descriptor.handlers import proto_wakaama
+
+    gctx = generator._protocol_config_generator().ctx
+    proto = _wakaama_proto()
+    proto.config["queue_mode"] = True
+    lines = proto_wakaama.generate_cpp("WAKAAMA0", proto, gctx)
+
+    qm = [i for i, ln in enumerate(lines) if "cfgIdQueueMode()" in ln]
+    assert qm, "queue_mode config item not emitted"
+    # A YAML bool must serialize to the integer 1, not Python's "True".
+    assert lines[qm[0] + 1].strip() == "1,"
+
+
 def test_wakaama_generate_cpp_device_battery(generator):
     from dawnpy.descriptor.handlers import proto_wakaama
 
