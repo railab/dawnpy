@@ -49,10 +49,26 @@ Validate a descriptor config:
 python -m dawnpy desc-valid boards/sim/sim/sim/configs/nsh_tests
 ```
 
+Add `--json` for a machine-readable validation report instead of the
+human-readable summary:
+
+```sh
+python -m dawnpy desc-valid --json boards/sim/sim/sim/configs/nsh_tests
+```
+
 Generate descriptor C++ from YAML:
 
 ```sh
 python -m dawnpy desc-gen descriptor.yaml
+```
+
+Export a descriptor YAML file as a machine-readable JSON node/edge graph
+(nodes for IO/program/protocol/system objects, edges for program
+inputs/outputs/reset and protocol bindings; objects that fail typed
+decoding stay visible as invalid generic nodes):
+
+```sh
+python -m dawnpy desc-graph descriptor.yaml
 ```
 
 Build a board/config:

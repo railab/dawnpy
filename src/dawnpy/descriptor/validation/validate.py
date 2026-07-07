@@ -84,6 +84,35 @@ def validate_config(
     return False
 
 
+def validate_config_json(config_path: Path) -> dict[str, Any]:
+    """Validate like ``validate_config`` but return JSON-ready data."""
+    descriptor_path = config_path / "descriptor.cxx"
+    defconfig_path = config_path / "defconfig"
+    missing = [
+        path.name
+        for path in (descriptor_path, defconfig_path)
+        if not path.exists()
+    ]
+    if missing:
+        return {
+            "valid": False,
+            "missing_files": missing,
+            "config": None,
+            "runtime_valid": False,
+        }
+    validator = DescriptorValidator()
+    result = validator.validate(str(config_path))
+    runtime_valid = validate_runtime_descriptor(
+        config_path=config_path, quiet=True
+    )
+    return {
+        "valid": bool(result.valid and runtime_valid),
+        "missing_files": [],
+        "config": result.model_dump(),
+        "runtime_valid": runtime_valid,
+    }
+
+
 def validate_runtime_descriptor(  # noqa: C901
     config_path: Path,
     quiet: bool,
