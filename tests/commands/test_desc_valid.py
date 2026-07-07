@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import json
+
 from tests.descriptor.cmd_descriptor_context import *
 
 
@@ -407,3 +409,36 @@ def test_validate_command_prints_serial_allocation_table():
         assert "path=/dev/ttyS1" in result.output
         assert "baudrate=115200" in result.output
         assert "ios=io1" in result.output
+
+
+def test_validate_command_json_success():
+    """--json emits a machine-readable success document."""
+    runner = CliRunner()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_path = Path(tmpdir)
+        (config_path / "descriptor.cxx").write_text(
+            '#include "dawn/io/dummy.hxx"\n'
+        )
+        (config_path / "defconfig").write_text("CONFIG_DAWN_IO_DUMMY=y\n")
+
+        result = runner.invoke(cmd_desc_valid, [str(config_path), "--json"])
+
+        assert result.exit_code == 0
+        doc = json.loads(result.output)
+        assert doc["valid"] is True
+        assert doc["missing_files"] == []
+        assert doc["runtime_valid"] is True
+        assert doc["config"]["valid"] is True
+        assert isinstance(doc["config"]["errors"], list)
+
+
+def test_validate_command_json_missing_files():
+    """--json reports missing inputs without crashing."""
+    runner = CliRunner()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result = runner.invoke(cmd_desc_valid, [str(tmpdir), "--json"])
+
+        doc = json.loads(result.output)
+        assert doc["valid"] is False
+        assert "descriptor.cxx" in doc["missing_files"]
+        assert doc["config"] is None
