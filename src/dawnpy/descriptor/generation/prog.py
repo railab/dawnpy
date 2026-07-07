@@ -241,6 +241,36 @@ class ProgramConfigGenerator:
             for literal in format_scalar_cpp(raw, obj.dtype):
                 self._format_helper.append_line(lines, 3, f"{literal},")
 
+    def _emit_fusion_params(  # pragma: no cover
+        self,
+        lines: list[str],
+        cpp_helper: str,
+        field_name: str,
+        obj: ProgramObject,
+        config: dict[str, Any],
+    ) -> None:
+        from dawnpy.descriptor.handlers.prog_fusion import (
+            PARAM_DEFAULTS,
+            PARAM_ORDER,
+        )
+
+        params = config.get(field_name, {})
+        if not isinstance(params, dict):  # pragma: no cover
+            params = {}
+
+        # rw is true only when a writable config IO targets these params; the
+        # config IO's reference emits the same cfgParams(rw) so the runtime
+        # cfg-id lookup matches.
+        rw = config_field_is_rw(
+            self._config_rw_grants(), obj.obj_id, field_name
+        )
+        rw_arg = "true" if rw else ""
+        self._format_helper.append_line(lines, 2, f"{cpp_helper}({rw_arg}),")
+        for name in PARAM_ORDER:
+            raw = params.get(name, PARAM_DEFAULTS[name])
+            for literal in format_scalar_cpp(raw, "float"):
+                self._format_helper.append_line(lines, 3, f"{literal},")
+
     def _emit_adjust_iobind(  # pragma: no cover
         self,
         lines: list[str],
@@ -383,6 +413,10 @@ class ProgramConfigGenerator:
             self._emit_id_array_quads(lines, cpp_helper, field_name, config)
         elif value_type == "adjust_params":
             self._emit_adjust_params(
+                lines, cpp_helper, field_name, obj, config
+            )
+        elif value_type == "fusion_params":
+            self._emit_fusion_params(
                 lines, cpp_helper, field_name, obj, config
             )
         elif value_type == "sequencer_states":
