@@ -20,6 +20,7 @@ from dawnpy.descriptor.definitions.objects import (
     ProtocolObject,
     prepare_spec_instances,
 )
+from dawnpy.descriptor.handlers import IO_HANDLER_REGISTRY
 from dawnpy.descriptor.support.vars import load_yaml_with_vars
 
 TAGS_TYPE_ERROR = "tags must be a list of strings"
@@ -98,6 +99,22 @@ class ClientDescriptor:
         ]
 
 
+def _effective_io_dtype(io: IoObject) -> str:
+    """Return the dtype a device actually uses for this IO.
+
+    When a variant forces a dtype (e.g. sysinfo ``uptime`` is always
+    uint64), that dtype is authoritative over whatever the descriptor
+    declared, matching the firmware's ObjectID. Client tools decode by
+    this dtype, so exposing the declared one would mislead them.
+    """
+    if io.variant is None:
+        return io.dtype
+    handler = IO_HANDLER_REGISTRY.get(io.io_type)
+    if handler is None:
+        return io.dtype
+    return handler.variant_dtypes.get(io.variant, io.dtype)
+
+
 def find_descriptor_path(path: str) -> str:
     """Resolve a descriptor path from user input."""
     candidate = Path(path)
@@ -147,7 +164,7 @@ def load_client_descriptor(  # noqa: C901
                     io_id=io_obj.obj_id,
                     io_type=io_obj.io_type,
                     instance=io_obj.instance,
-                    dtype=io_obj.dtype,
+                    dtype=_effective_io_dtype(io_obj),
                     tags=io_obj.tags,
                     config=io_obj.config,
                     timestamp=io_obj.timestamp,
