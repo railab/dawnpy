@@ -327,3 +327,46 @@ protocols: []
     path = _write_descriptor(tmp_path, descriptor)
     with pytest.raises(ValueError, match="tags must be a list of strings"):
         load_client_descriptor(path)
+
+
+def test_client_io_effective_dtype_variant_forced(tmp_path):
+    """A variant-forced dtype overrides the declared descriptor dtype.
+
+    The firmware always uses the variant's dtype (e.g. sysinfo/uptime
+    is uint64); a descriptor that declares a conflicting dtype must not
+    mislead client tools.
+    """
+    descriptor = """
+ios:
+- id: uptime1
+  type: sysinfo
+  dtype: float
+  variant: uptime
+- id: plain1
+  type: dummy
+  dtype: uint32
+"""
+    path = _write_descriptor(tmp_path, descriptor)
+    desc = load_client_descriptor(path)
+    assert desc.ios["uptime1"].dtype == "uint64"
+    assert desc.ios["plain1"].dtype == "uint32"
+
+
+def test_effective_io_dtype_unknown_type_keeps_declared():
+    """With a variant but no handler, the declared dtype is kept."""
+    from dawnpy.descriptor.client import _effective_io_dtype
+
+    io = IoObject(
+        obj_id="x0",
+        io_type="no_such_io_type",
+        instance=0,
+        dtype="uint32",
+        tags=[],
+        config={},
+        timestamp=False,
+        notify=False,
+        rw=False,
+        subtype=None,
+        variant="somevariant",
+    )
+    assert _effective_io_dtype(io) == "uint32"
