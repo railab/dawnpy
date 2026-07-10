@@ -586,6 +586,7 @@ def _sensor_summary_suffix(subtype: str) -> str:
     """Return ObjectID class suffix for a sensor subtype."""
     subtype_map = {
         "temp": "temperature",
+        "atemp": "atemperature",
         "accel": "accelerometer",
         "gyro": "gyroscope",
         "mag": "magneticfield",
