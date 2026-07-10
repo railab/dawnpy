@@ -7,9 +7,14 @@
 
 from typing import Any
 
+from dawnpy.descriptor.config_access import config_field_is_rw
 from dawnpy.descriptor.definitions.type_info import ConfigField
-from dawnpy.descriptor.encoding.scalar import encode_scalar_words
+from dawnpy.descriptor.encoding.scalar import (
+    encode_scalar_words,
+    format_scalar_cpp,
+)
 from dawnpy.descriptor.encoding.words import cfg_id
+from dawnpy.descriptor.handlers._prog_config_cpp import ProgFieldCppCtx
 from dawnpy.descriptor.support.utils import resolve_reference
 from dawnpy.headerdefs.bundle import header_cfg_id
 
@@ -36,6 +41,9 @@ _ID_FIELDS: tuple[tuple[str, str], ...] = (
     ("output", "cfgIdOutput"),
 )
 
+#: Optional single-id fields (encoded only when present in the config).
+_OPTIONAL_ID_FIELDS: tuple[tuple[str, str], ...] = (("mag", "cfgIdMag"),)
+
 
 def config_fields() -> list[ConfigField]:  # pragma: no cover
     """Return the user-facing YAML config schema for ``fusion``."""
@@ -48,6 +56,11 @@ def config_fields() -> list[ConfigField]:  # pragma: no cover
         ConfigField(
             name="gyro",
             cpp_helper=f"{cpp_class}::cfgIdGyro",
+            value_type="id_single",
+        ),
+        ConfigField(
+            name="mag",
+            cpp_helper=f"{cpp_class}::cfgIdMag",
             value_type="id_single",
         ),
         ConfigField(
@@ -80,6 +93,36 @@ def params_words(config: dict[str, Any]) -> list[int]:
     return words
 
 
+def emit_config_field_cpp(
+    lines: list[str],
+    field_def: ConfigField,
+    obj: Any,
+    config: dict[str, Any],
+    ctx: ProgFieldCppCtx,
+) -> bool:
+    """Emit the ``fusion`` params block; return whether handled."""
+    if field_def.value_type != "fusion_params":
+        return False
+
+    params = config.get(field_def.name, {})
+    if not isinstance(params, dict):
+        params = {}
+
+    # rw is true only when a writable config IO targets these params; the
+    # config IO's reference emits the same cfgParams(rw) so the runtime
+    # cfg-id lookup matches.
+    rw = config_field_is_rw(ctx.rw_grants, obj.obj_id, field_def.name)
+    rw_arg = "true" if rw else ""
+    ctx.format_helper.append_line(
+        lines, 2, f"{field_def.cpp_helper}({rw_arg}),"
+    )
+    for name in PARAM_ORDER:
+        raw = params.get(name, PARAM_DEFAULTS[name])
+        for literal in format_scalar_cpp(raw, "float"):
+            ctx.format_helper.append_line(lines, 3, f"{literal},")
+    return True
+
+
 def validate_object(obj: Any) -> list[str]:
     """Require the accel/gyro/output references."""
     config = obj.config if isinstance(obj.config, dict) else {}
@@ -94,7 +137,7 @@ def validate_object_refs(obj: Any, io_map: dict[str, Any]) -> list[str]:
     """All bound IOs must be float."""
     config = obj.config if isinstance(obj.config, dict) else {}
     errors: list[str] = []
-    for name, _ in _ID_FIELDS:
+    for name, _ in _ID_FIELDS + _OPTIONAL_ID_FIELDS:
         ref = resolve_reference(config.get(name))
         io = io_map.get(ref) if ref else None
         if io is not None and io.dtype != "float":
@@ -122,7 +165,7 @@ def encode_binary(
     del decoder
 
     config = obj.config if isinstance(obj.config, dict) else {}
-    for name, helper in _ID_FIELDS:
+    for name, helper in _ID_FIELDS + _OPTIONAL_ID_FIELDS:
         ref = resolve_reference(config.get(name))
         obj_id = obj_ids.get(ref, 0) if ref else 0
         if obj_id:
