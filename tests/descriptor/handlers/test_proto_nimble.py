@@ -668,6 +668,108 @@ class TestProtoNimbleHandler:
         # 1 (gap_name) + 2 (services dis + bas) = 3
         assert lines[0].strip() == "NIMBLE1, 3,"
 
+    def test_resolve_bindings_from_services(self):
+        """Nimble IOs nested in services surface as protocol bindings.
+
+        The refs live under bas/aios/custom (not a flat ``bindings``
+        list); resolve_bindings must collect them, ordered and unique,
+        so the graph/summary can bind them.
+        """
+        obj = to_proto_obj(
+            {
+                "type": "nimble",
+                "config": {
+                    "gap_name": "ble-dev",
+                    "services": {
+                        "dis": {"enabled": True},
+                        "bas": {"battery_level": "battery0"},
+                        "aios": {
+                            "groups": [
+                                {
+                                    "digital_inputs": ["din0"],
+                                    "digital_outputs": ["dout0"],
+                                }
+                            ]
+                        },
+                        "custom": [
+                            {
+                                "uuid": "9f2d2b30-74d3-4f34-9f37-ef7d8f6d3000",
+                                "characteristics": [
+                                    {
+                                        "uuid": (
+                                            "9f2d2b30-74d3-4f34-9f37-"
+                                            "ef7d8f6d3001"
+                                        ),
+                                        "io": "rgbled0",
+                                        "flags": ["read", "write"],
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                },
+            }
+        )
+        assert obj.bindings == [
+            "battery0",
+            "din0",
+            "dout0",
+            "rgbled0",
+        ]
+
+    def test_resolve_bindings_dedups(self):
+        """One IO exposed by two characteristics binds once."""
+        obj = to_proto_obj(
+            {
+                "type": "nimble",
+                "config": {
+                    "services": {
+                        "custom": [
+                            {
+                                "uuid": "svc",
+                                "characteristics": [
+                                    {"uuid": "c1", "io": "rgbled0"},
+                                    {"uuid": "c2", "io": "rgbled0"},
+                                ],
+                            }
+                        ]
+                    }
+                },
+            }
+        )
+        assert obj.bindings == ["rgbled0"]
+
+    def test_resolve_bindings_non_dict_services(self):
+        """A malformed ``services`` block keeps the flat bindings only."""
+        from dawnpy.descriptor.handlers import proto_nimble
+
+        bindings = proto_nimble.resolve_bindings(
+            ["flat0"], {"services": "not-a-dict"}
+        )
+        assert bindings == ["flat0"]
+
+    def test_resolve_bindings_skips_non_dict_custom(self):
+        """Non-dict custom service entries are ignored."""
+        obj = to_proto_obj(
+            {
+                "type": "nimble",
+                "config": {
+                    "services": {
+                        "custom": [
+                            "not-a-dict",
+                            {
+                                "uuid": "svc",
+                                "characteristics": [
+                                    {"uuid": "c1", "io": "rgbled0"},
+                                ],
+                            },
+                        ]
+                    }
+                },
+            }
+        )
+        assert obj.bindings == ["rgbled0"]
+
 
 def test_nimble_with_services(generator):
     """Test nimble protocol with BLE services."""
