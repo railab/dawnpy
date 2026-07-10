@@ -135,6 +135,53 @@ class TestFusionHandler:
         obj = _obj(config={"accel": "accel0", "gyro": "gyro0"})
         assert output_shape_owned_virt_targets(obj) == set()
 
+    def test_encode_binary_with_mag(self):
+        items = []
+        obj = _obj(
+            config={
+                "accel": "accel0",
+                "gyro": "gyro0",
+                "mag": "mag0",
+                "output": "fused_src",
+            }
+        )
+
+        encode_binary(
+            items,
+            obj,
+            34,
+            {"accel0": 1, "gyro0": 2, "mag0": 4, "fused_src": 3},
+            None,
+        )
+
+        # accel, gyro, output, mag ids + params.
+        assert len(items) == 5
+        assert items[3][1] == [4]
+
+    def test_validate_mag_dtype(self):
+        io_map = {
+            "accel0": to_io_obj({"dtype": "float"}, "accel0"),
+            "gyro0": to_io_obj({"dtype": "float"}, "gyro0"),
+            "mag0": to_io_obj({"dtype": "int16"}, "mag0"),
+            "fused_src": to_io_obj({"dtype": "float"}, "fused_src"),
+        }
+        obj = _obj(
+            config={
+                "accel": "accel0",
+                "gyro": "gyro0",
+                "mag": "mag0",
+                "output": "fused_src",
+            }
+        )
+
+        errors = validate_object_refs(obj, io_map)
+
+        assert len(errors) == 1
+        assert "mag0" in errors[0]
+
+    def test_mag_is_optional(self):
+        assert validate_object(_obj()) == []
+
     def test_emit_fusion_params(self):
         from dawnpy.descriptor.definitions.loader import ConfigLoader
 
