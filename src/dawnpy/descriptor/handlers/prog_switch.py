@@ -4,6 +4,7 @@ from typing import Any
 
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.words import cfg_id
+from dawnpy.descriptor.handlers._prog_config_cpp import ProgFieldCppCtx
 from dawnpy.descriptor.support.utils import resolve_reference
 from dawnpy.headerdefs.bundle import header_cfg_id
 
@@ -25,6 +26,45 @@ def config_fields() -> list[ConfigField]:  # pragma: no cover
             value_type="switch_target",
         ),
     ]
+
+
+def emit_config_field_cpp(
+    lines: list[str],
+    field_def: ConfigField,
+    obj: Any,
+    config: dict[str, Any],
+    ctx: ProgFieldCppCtx,
+) -> bool:
+    """Emit ``switch`` inputs/target blocks; return whether handled."""
+    if field_def.value_type == "switch_inputs":
+        entries = config.get(field_def.name, [])
+        words = []
+        if isinstance(entries, list):
+            for e in entries:
+                if isinstance(e, dict):
+                    io = resolve_reference(e.get("io", ""))
+                    words.append(io.upper() if io else "0")
+                    words.append(str(int(e.get("match", 1))))
+        ctx.format_helper.append_line(
+            lines, 2, f"{field_def.cpp_helper}({len(words)}),"
+        )
+        for w in words:
+            ctx.format_helper.append_line(lines, 3, f"{w},")
+        return True
+
+    if field_def.value_type == "switch_target":
+        target = config.get(field_def.name, [])
+        tgt_ref = resolve_reference(target[0]) if target else ""
+        tgt_id = tgt_ref.upper() if tgt_ref else "0"
+        on_cmd = str(int(target[1])) if len(target) > 1 else "1"
+        off_cmd = str(int(target[2])) if len(target) > 2 else "0"
+        ctx.format_helper.append_line(lines, 2, f"{field_def.cpp_helper}(),")
+        ctx.format_helper.append_line(lines, 3, f"{tgt_id},")
+        ctx.format_helper.append_line(lines, 3, f"{on_cmd},")
+        ctx.format_helper.append_line(lines, 3, f"{off_cmd},")
+        return True
+
+    return False
 
 
 def output_shape_owned_virt_targets(obj: Any) -> set[str]:

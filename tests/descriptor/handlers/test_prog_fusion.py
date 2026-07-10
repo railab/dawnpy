@@ -10,19 +10,19 @@ import struct
 import pytest
 
 from dawnpy.descriptor.definitions.objects import ProgramObject
-from dawnpy.descriptor.definitions.registry import PROG_TYPES
-from dawnpy.descriptor.generation.prog import ProgramConfigGenerator
+from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.handlers import PROG_HANDLER_REGISTRY
 from dawnpy.descriptor.handlers.prog_fusion import (
     PARAM_DEFAULTS,
     PARAM_ORDER,
+    emit_config_field_cpp,
     encode_binary,
     output_shape_owned_virt_targets,
     validate_object,
     validate_object_refs,
 )
 
-from .helpers import to_io_obj
+from .helpers import prog_cpp_ctx, to_io_obj
 
 pytestmark = pytest.mark.usefixtures("source_free_headers")
 
@@ -183,17 +183,18 @@ class TestFusionHandler:
         assert validate_object(_obj()) == []
 
     def test_emit_fusion_params(self):
-        from dawnpy.descriptor.definitions.loader import ConfigLoader
-
-        prog_gen = ProgramConfigGenerator(
-            config_loader=ConfigLoader(), prog_types=PROG_TYPES
+        field = ConfigField(
+            name="params",
+            cpp_helper="CProgFusion::cfgParams",
+            value_type="fusion_params",
         )
-        lines = []
+        lines: list[str] = []
 
-        prog_gen._emit_fusion_params(
-            lines, "CProgFusion::cfgParams", "params", _obj(), _obj().config
+        handled = emit_config_field_cpp(
+            lines, field, _obj(), _obj().config, prog_cpp_ctx()
         )
 
+        assert handled is True
         assert lines == [
             "    CProgFusion::cfgParams(),",
             f"      {_f32(0.5):#010x},",
@@ -201,3 +202,40 @@ class TestFusionHandler:
             f"      {_f32(5.0):#010x},",
             f"      {_f32(50.0):#010x},",
         ]
+
+    def test_emit_fusion_params_rw_when_granted(self):
+        field = ConfigField(
+            name="params",
+            cpp_helper="CProgFusion::cfgParams",
+            value_type="fusion_params",
+        )
+        lines: list[str] = []
+        ctx = prog_cpp_ctx({("fusion1", "params"): True})
+
+        emit_config_field_cpp(lines, field, _obj(), _obj().config, ctx)
+
+        assert lines[0] == "    CProgFusion::cfgParams(true),"
+
+    def test_emit_fusion_params_non_dict_uses_defaults(self):
+        field = ConfigField(
+            name="params",
+            cpp_helper="CProgFusion::cfgParams",
+            value_type="fusion_params",
+        )
+        lines: list[str] = []
+        emit_config_field_cpp(
+            lines, field, _obj(), {"params": "nonsense"}, prog_cpp_ctx()
+        )
+        assert lines == [
+            "    CProgFusion::cfgParams(),",
+            *[f"      {_f32(PARAM_DEFAULTS[n]):#010x}," for n in PARAM_ORDER],
+        ]
+
+    def test_emit_declines_other_value_type(self):
+        field = ConfigField(name="x", cpp_helper="H", value_type="uint32")
+        lines: list[str] = []
+        handled = emit_config_field_cpp(
+            lines, field, _obj(), {}, prog_cpp_ctx()
+        )
+        assert handled is False
+        assert lines == []

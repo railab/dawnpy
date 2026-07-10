@@ -17,6 +17,10 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from dawnpy.descriptor.definitions.type_info import ConfigField
+from dawnpy.descriptor.handlers._prog_config_cpp import (
+    ProgFieldCppCtx,
+    emit_config_fields_cpp,
+)
 
 if TYPE_CHECKING:
     from dawnpy.descriptor.client import ClientIo, ClientProgram
@@ -155,6 +159,17 @@ class ProgHandler(Protocol):
         cpp_class: str,
     ) -> bool:
         """Emit custom C++ iobind config and return whether handled."""
+        raise NotImplementedError
+
+    def emit_config_cpp(
+        self,
+        lines: list[str],
+        obj: ProgramObject,
+        config: dict[str, Any],
+        field_defs: list[ConfigField],
+        ctx: ProgFieldCppCtx,
+    ) -> None:
+        """Emit C++ source for this program's type-specific config fields."""
         raise NotImplementedError
 
 
@@ -487,6 +502,25 @@ class ProgHandlerAdapter(ModuleHandlerAdapter):
         if custom is None:
             return False
         return bool(custom(lines, obj, total_ids, format_helper, cpp_class))
+
+    def emit_config_cpp(
+        self,
+        lines: list[str],
+        obj: ProgramObject,
+        config: dict[str, Any],
+        field_defs: list[ConfigField],
+        ctx: ProgFieldCppCtx,
+    ) -> None:
+        """Emit C++ source for this program's type-specific config fields.
+
+        Delegates to the shared field loop: the handler's own
+        ``emit_config_field_cpp`` hook owns program-specific value-types;
+        anything it declines falls back to the shared generic emitters.
+        """
+        hook = getattr(self._module, "emit_config_field_cpp", None)
+        emit_config_fields_cpp(
+            hook, self.yaml_type, lines, obj, config, field_defs, ctx
+        )
 
 
 class ProtoHandlerAdapter(ModuleHandlerAdapter):

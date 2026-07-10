@@ -16,10 +16,16 @@ from typing import TYPE_CHECKING
 
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.words import cfg_id
+from dawnpy.descriptor.handlers._prog_config_cpp import (
+    ProgFieldCppCtx,
+    resolve_id,
+)
 from dawnpy.descriptor.support.utils import resolve_reference
 from dawnpy.headerdefs.bundle import header_cfg_id
 
 if TYPE_CHECKING:
+    from typing import Any
+
     from dawnpy.descriptor.definitions.objects import ProgramObject
     from dawnpy.objectid import ObjectIdDecoder
 
@@ -37,6 +43,44 @@ def config_fields() -> list[ConfigField]:
             value_type="gateway_iobind",
         ),
     ]
+
+
+def emit_config_field_cpp(
+    lines: list[str],
+    field_def: ConfigField,
+    obj: ProgramObject,
+    config: dict[str, Any],
+    ctx: ProgFieldCppCtx,
+) -> bool:
+    """Emit the ``gateway`` iobind block; return whether handled."""
+    if field_def.value_type != "gateway_iobind":
+        return False
+
+    entries = config.get(field_def.name, [])
+    if not isinstance(entries, list):
+        entries = []
+
+    resolved_gateway: list[tuple[str, str, int, int]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        io1 = resolve_id(entry.get("io1"))
+        io2 = resolve_id(entry.get("io2"))
+        if not io1 or not io2:
+            continue
+        flags = int(entry.get("flags", 0))
+        dim = int(entry.get("dim", 1))
+        resolved_gateway.append((io1, io2, flags, dim))
+
+    ctx.format_helper.append_line(
+        lines, 2, f"{field_def.cpp_helper}({4 * len(resolved_gateway)}),"
+    )
+    for io1, io2, flags, dim in resolved_gateway:
+        ctx.format_helper.append_line(lines, 3, f"{io1.upper()},")
+        ctx.format_helper.append_line(lines, 3, f"{io2.upper()},")
+        ctx.format_helper.append_line(lines, 3, f"{flags},")
+        ctx.format_helper.append_line(lines, 3, f"{dim},")
+    return True
 
 
 def output_shape_owned_virt_targets(obj: ProgramObject) -> set[str]:
