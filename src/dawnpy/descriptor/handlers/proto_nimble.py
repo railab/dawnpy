@@ -217,6 +217,120 @@ def _append_imds_allocation_row(
         )
 
 
+def _bas_refs(bas: Any) -> list[str]:
+    """Collect the battery-level IO from a BAS service."""
+    out: list[str] = []
+    if isinstance(bas, dict):
+        _append_ref(out, resolve_flexible_reference(bas.get("battery_level")))
+    return out
+
+
+def _aios_refs(aios: Any) -> list[str]:
+    """Collect group IOs from an AIOS service."""
+    out: list[str] = []
+    if not isinstance(aios, dict):
+        return out
+    for grp in _as_list(aios.get("groups")):
+        if not isinstance(grp, dict):
+            continue
+        for key in (
+            "digital_inputs",
+            "digital_outputs",
+            "analog_inputs",
+            "analog_outputs",
+        ):
+            for ref in _as_list(grp.get(key)):
+                _append_ref(out, _aios_binding_ref(ref))
+    return out
+
+
+def _ess_refs(ess: Any) -> list[str]:
+    """Collect characteristic IOs from an ESS service."""
+    out: list[str] = []
+    if isinstance(ess, dict):
+        for entry in _as_list(ess.get("characteristics")):
+            if isinstance(entry, dict):
+                _append_ref(out, resolve_flexible_reference(entry.get("data")))
+    return out
+
+
+def _imds_refs(imds: Any) -> list[str]:
+    """Collect measurement IOs from an IMDS service."""
+    out: list[str] = []
+    if isinstance(imds, dict):
+        for value in imds.values():
+            _append_ref(out, _imds_binding_ref(value))
+    return out
+
+
+def _ots_refs(ots: Any) -> list[str]:
+    """Collect object IOs from an OTS service."""
+    out: list[str] = []
+    if isinstance(ots, dict):
+        for entry in _as_list(ots.get("objects")):
+            if isinstance(entry, dict):
+                _append_ref(out, resolve_flexible_reference(entry.get("io")))
+    return out
+
+
+def _custom_refs(custom: Any) -> list[str]:
+    """Collect characteristic IOs from custom services."""
+    out: list[str] = []
+    for service in _as_list(custom):
+        if not isinstance(service, dict):
+            continue
+        for char in _as_list(service.get("characteristics")):
+            if isinstance(char, dict):
+                _append_ref(out, resolve_flexible_reference(char.get("io")))
+    return out
+
+
+def resolve_bindings(bindings: list[str], config: dict[str, Any]) -> list[str]:
+    """Return every descriptor IO the Nimble services bind to.
+
+    Nimble carries its IO references inside ``config.services`` (each
+    service has its own shape) rather than a flat ``bindings`` list, so
+    without this a Nimble protocol would look unbound: no
+    ``protocol_binding`` edges and empty allocation IO lists. Returns
+    ordered-unique IO ids so the graph/summary draw one edge per IO.
+    """
+    ordered: list[str] = list(bindings)
+    services = config.get("services", {})
+    if not isinstance(services, dict):
+        return _dedup_refs(ordered)
+
+    ordered.extend(_bas_refs(services.get("bas")))
+    ordered.extend(_aios_refs(services.get("aios")))
+    ordered.extend(_ess_refs(services.get("ess")))
+    ordered.extend(_imds_refs(services.get("imds")))
+    ordered.extend(_ots_refs(services.get("ots")))
+    ordered.extend(_custom_refs(services.get("custom")))
+
+    return _dedup_refs(ordered)
+
+
+def _as_list(value: Any) -> list[Any]:
+    """Return ``value`` if it is a list, else an empty list."""
+    return value if isinstance(value, list) else []
+
+
+def _append_ref(ordered: list[str], ref: str | None) -> None:
+    """Append a resolved IO reference when present."""
+    if ref:
+        ordered.append(ref)
+
+
+def _dedup_refs(items: list[str]) -> list[str]:
+    """Return items with duplicates removed, preserving first order."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out
+
+
 def validate_object(obj: Any) -> list[str]:
     """Ensure Nimble service blocks are mappings."""
     services = obj.config.get("services")
