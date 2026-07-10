@@ -9,20 +9,22 @@ Owns every per-type concern in one place:
 
 * ``cpp_class`` binding (yaml-token ``adjust`` -> ``CProgAdjust``)
 * user-facing YAML config schema (``params`` field)
+* C++ source emission for the ``adjust_params`` value-type
 * binary serializer block (cfgParams -> [offset, scale])
-
-The C++ source generator path still lives in
-``descriptor/prog_generators.py`` (the ``adjust_params`` value-type
-emitter) - the generator carve-up is a follow-up.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from dawnpy.descriptor.config_access import config_field_is_rw
 from dawnpy.descriptor.definitions.type_info import ConfigField
-from dawnpy.descriptor.encoding.scalar import encode_scalar_words
+from dawnpy.descriptor.encoding.scalar import (
+    encode_scalar_words,
+    format_scalar_cpp,
+)
 from dawnpy.descriptor.encoding.words import cfg_id
+from dawnpy.descriptor.handlers._prog_config_cpp import ProgFieldCppCtx
 from dawnpy.headerdefs.bundle import header_cfg_id
 
 if TYPE_CHECKING:
@@ -64,6 +66,35 @@ def emit_iobind_cpp(
     format_helper.append_line(lines, 2, "CProgAdjust::cfgIdIOBind(),")
     format_helper.append_line(lines, 3, f"{obj.inputs[0].upper()},")
     format_helper.append_line(lines, 3, f"{obj.outputs[0].upper()},")
+    return True
+
+
+def emit_config_field_cpp(
+    lines: list[str],
+    field_def: ConfigField,
+    obj: ProgramObject,
+    config: dict[str, Any],
+    ctx: ProgFieldCppCtx,
+) -> bool:
+    """Emit the ``adjust`` params block; return whether handled."""
+    if field_def.value_type != "adjust_params":
+        return False
+
+    params = config.get(field_def.name, {})
+    if not isinstance(params, dict):
+        params = {}
+
+    # rw is true only when a writable config IO targets these params; the
+    # config IO's reference emits the same cfgParams(rw) so the runtime
+    # cfg-id lookup matches.
+    rw = config_field_is_rw(ctx.rw_grants, obj.obj_id, field_def.name)
+    rw_arg = "true" if rw else ""
+    ctx.format_helper.append_line(
+        lines, 2, f"{field_def.cpp_helper}({rw_arg}),"
+    )
+    for raw in (params.get("offset", 0), params.get("scale", 1)):
+        for literal in format_scalar_cpp(raw, obj.dtype):
+            ctx.format_helper.append_line(lines, 3, f"{literal},")
     return True
 
 

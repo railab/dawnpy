@@ -1,43 +1,37 @@
-# tools/dawnpy/src/dawnpy/descriptor/prog_generators.py
+# tools/dawnpy/src/dawnpy/descriptor/generation/prog.py
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
-"""Program-specific descriptor generation helpers."""
+"""Program descriptor C++ generation orchestrator.
+
+Each program's type-specific config emission lives in its handler
+(``handlers/prog_*.py``), symmetric with the binary ``encode_binary`` path.
+This module only drives the shared per-object structure: the config-count
+header, the iobind item, and the delegation to the handler's config emitter.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from dawnpy.descriptor.config_access import (
-    ConfigRwGrants,
-    config_field_is_rw,
-)
-from dawnpy.descriptor.definitions.type_info import ConfigField
-from dawnpy.descriptor.encoding.scalar import format_scalar_cpp
+from dawnpy.descriptor.config_access import ConfigRwGrants
 from dawnpy.descriptor.handlers import PROG_HANDLER_REGISTRY
+from dawnpy.descriptor.handlers._prog_config_cpp import (
+    ProgFieldCppCtx,
+    emit_config_fields_cpp,
+)
 from dawnpy.descriptor.support.formatting import DescriptorFormatHelper
-from dawnpy.descriptor.support.utils import resolve_reference
 
 if TYPE_CHECKING:
     from dawnpy.descriptor.definitions.objects import ProgramObject
 
-
-def _resolve_id(ref: Any) -> str | None:  # pragma: no cover
-    """Resolve a YAML anchor or string reference to an object ID."""
-    if isinstance(ref, dict):
-        return ref.get("id")  # pragma: no cover
-    if ref is not None:
-        return str(ref)  # pragma: no cover
-    return None  # pragma: no cover
-
-
-def _resolve_ids(refs: Any) -> list[str]:  # pragma: no cover
-    """Resolve a list of YAML references to object ID strings."""
-    if not isinstance(refs, list):
-        return []  # pragma: no cover
-    return [r for r in (_resolve_id(ref) for ref in refs) if r]
+#: Value-types whose handler emits its own iobind item, replacing the
+#: standard interleaved (source, output) iobind pairs.
+_CUSTOM_IOBIND_VALUE_TYPES = frozenset(
+    {"id_array_pairs", "gateway_iobind", "id_array_quads", "id_list"}
+)
 
 
 class ProgramConfigGenerator:
@@ -57,377 +51,6 @@ class ProgramConfigGenerator:
         self._format_helper = format_helper or DescriptorFormatHelper()
         self._config_rw_grants = config_rw_grants or (lambda: {})
 
-    def _emit_id_array_pairs(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        obj: ProgramObject,
-        config: dict[str, Any],
-    ) -> None:
-        sources = _resolve_ids(config.get("sources", obj.inputs))
-        outputs = _resolve_ids(config.get("outputs", obj.outputs))
-        n = len(sources) + len(outputs)
-        if len(sources) != len(outputs):
-            raise ValueError(
-                f"Program {obj.obj_id} has {len(sources)} sources and "
-                f"{len(outputs)} outputs"
-            )
-        self._format_helper.append_line(lines, 2, f"{cpp_helper}({n}),")
-        for src_id, output_id in zip(sources, outputs, strict=True):
-            self._format_helper.append_line(lines, 3, f"{src_id.upper()},")
-            self._format_helper.append_line(lines, 3, f"{output_id.upper()},")
-
-    def _emit_uint32(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        field_name: str,
-        config: dict[str, Any],
-        default: str = "",
-    ) -> None:
-        value = config.get(field_name, default if default else 0)
-        self._format_helper.append_line(lines, 2, f"{cpp_helper}(),")
-        self._format_helper.append_line(lines, 3, f"{value},")
-
-    def _emit_uint32_list(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        field_name: str,
-        config: dict[str, Any],
-    ) -> None:
-        values = config.get(field_name, [])
-        n = len(values)
-        self._format_helper.append_line(lines, 2, f"{cpp_helper}({n}),")
-        for v in values:
-            self._format_helper.append_line(lines, 3, f"{int(v)},")
-
-    def _emit_id_array(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        field_name: str,
-        obj: ProgramObject,
-    ) -> None:
-        self._format_helper.append_line(lines, 2, f"{cpp_helper}(),")
-        # For standard inputs/outputs, they are in obj.inputs/obj.outputs
-        if field_name == "inputs":  # pragma: no cover
-            ids = obj.inputs
-        elif field_name == "outputs":  # pragma: no cover
-            ids = obj.outputs
-        else:  # pragma: no cover
-            ids = obj.config.get(field_name, [])
-
-        for obj_id in ids:
-            self._format_helper.append_line(lines, 3, f"{obj_id.upper()},")
-
-    def _emit_id_list(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        field_name: str,
-        config: dict[str, Any],
-    ) -> None:
-        ids = _resolve_ids(config.get(field_name, []))
-        self._format_helper.append_line(lines, 2, f"{cpp_helper}({len(ids)}),")
-        for obj_id in ids:
-            self._format_helper.append_line(lines, 3, f"{obj_id.upper()},")
-
-    def _emit_id_single(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        field_name: str,
-        obj: ProgramObject,
-    ) -> None:
-        if field_name == "reset":
-            obj_id = obj.reset
-        else:
-            obj_id = obj.config.get(field_name)
-            if isinstance(obj_id, list):
-                obj_id = obj_id[0] if obj_id else None
-        obj_id = resolve_reference(obj_id) if obj_id else None
-
-        self._format_helper.append_line(lines, 2, f"{cpp_helper}(),")
-        if obj_id:
-            self._format_helper.append_line(lines, 3, f"{obj_id.upper()},")
-        else:
-            self._format_helper.append_line(lines, 3, "0,")
-
-    def _emit_gateway_iobind(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        field_name: str,
-        config: dict[str, Any],
-    ) -> None:
-        entries = config.get(field_name, [])
-        if not isinstance(entries, list):  # pragma: no cover
-            entries = []
-
-        resolved_gateway: list[tuple[str, str, int, int]] = []
-        for entry in entries:
-            if not isinstance(entry, dict):  # pragma: no cover
-                continue
-            io1 = _resolve_id(entry.get("io1"))
-            io2 = _resolve_id(entry.get("io2"))
-            if not io1 or not io2:  # pragma: no cover
-                continue
-            flags = int(entry.get("flags", 0))
-            dim = int(entry.get("dim", 1))
-            resolved_gateway.append((io1, io2, flags, dim))
-
-        self._format_helper.append_line(
-            lines, 2, f"{cpp_helper}({4 * len(resolved_gateway)}),"
-        )
-        for io1, io2, flags, dim in resolved_gateway:
-            self._format_helper.append_line(lines, 3, f"{io1.upper()},")
-            self._format_helper.append_line(lines, 3, f"{io2.upper()},")
-            self._format_helper.append_line(lines, 3, f"{flags},")
-            self._format_helper.append_line(lines, 3, f"{dim},")
-
-    def _emit_id_array_quads(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        field_name: str,
-        config: dict[str, Any],
-    ) -> None:
-        entries = config.get(field_name, [])
-        if not isinstance(entries, list):  # pragma: no cover
-            entries = []
-
-        resolved_quads: list[tuple[str, str, str, str]] = []
-        for entry in entries:
-            if not isinstance(entry, dict):  # pragma: no cover
-                continue
-            src = _resolve_id(entry.get("src"))
-            out = _resolve_id(entry.get("out"))
-            sel = _resolve_id(entry.get("sel"))
-            stat = _resolve_id(entry.get("stat"))
-            if not src or not out or not sel or not stat:  # pragma: no cover
-                continue
-            resolved_quads.append((src, out, sel, stat))
-
-        size = 4 * len(resolved_quads)
-        self._format_helper.append_line(lines, 2, f"{cpp_helper}({size}),")
-        for src, out, sel, stat in resolved_quads:
-            self._format_helper.append_line(lines, 3, f"{src.upper()},")
-            self._format_helper.append_line(lines, 3, f"{out.upper()},")
-            self._format_helper.append_line(lines, 3, f"{sel.upper()},")
-            self._format_helper.append_line(lines, 3, f"{stat.upper()},")
-
-    def _emit_adjust_params(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        field_name: str,
-        obj: ProgramObject,
-        config: dict[str, Any],
-    ) -> None:
-        params = config.get(field_name, {})
-        if not isinstance(params, dict):  # pragma: no cover
-            params = {}
-
-        # rw is true only when a writable config IO targets these params; the
-        # config IO's reference emits the same cfgParams(rw) so the runtime
-        # cfg-id lookup matches.
-        rw = config_field_is_rw(
-            self._config_rw_grants(), obj.obj_id, field_name
-        )
-        rw_arg = "true" if rw else ""
-        self._format_helper.append_line(lines, 2, f"{cpp_helper}({rw_arg}),")
-        for raw in (params.get("offset", 0), params.get("scale", 1)):
-            for literal in format_scalar_cpp(raw, obj.dtype):
-                self._format_helper.append_line(lines, 3, f"{literal},")
-
-    def _emit_fusion_params(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        field_name: str,
-        obj: ProgramObject,
-        config: dict[str, Any],
-    ) -> None:
-        from dawnpy.descriptor.handlers.prog_fusion import (
-            PARAM_DEFAULTS,
-            PARAM_ORDER,
-        )
-
-        params = config.get(field_name, {})
-        if not isinstance(params, dict):  # pragma: no cover
-            params = {}
-
-        # rw is true only when a writable config IO targets these params; the
-        # config IO's reference emits the same cfgParams(rw) so the runtime
-        # cfg-id lookup matches.
-        rw = config_field_is_rw(
-            self._config_rw_grants(), obj.obj_id, field_name
-        )
-        rw_arg = "true" if rw else ""
-        self._format_helper.append_line(lines, 2, f"{cpp_helper}({rw_arg}),")
-        for name in PARAM_ORDER:
-            raw = params.get(name, PARAM_DEFAULTS[name])
-            for literal in format_scalar_cpp(raw, "float"):
-                self._format_helper.append_line(lines, 3, f"{literal},")
-
-    def _emit_adjust_iobind(  # pragma: no cover
-        self,
-        lines: list[str],
-        obj: ProgramObject,
-    ) -> None:
-        """Compatibility wrapper for the adjust handler iobind emitter."""
-        handler = PROG_HANDLER_REGISTRY["adjust"]
-        handler.emit_iobind_cpp(
-            lines,
-            obj,
-            len(obj.inputs) + len(obj.outputs),
-            self._format_helper,
-            "CProgAdjust",
-        )
-
-    def _emit_sequencer_states(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        field_name: str,
-        config: dict[str, Any],
-    ) -> None:
-        entries = config.get(field_name, [])
-        encoded: list[tuple[int, int]] = []
-        entry: Any
-
-        if not isinstance(entries, list):  # pragma: no cover
-            entries = []
-
-        for entry in entries:
-            value_raw: Any
-            dwell_raw: Any
-            value: int
-            dwell: int
-
-            if not isinstance(entry, dict):  # pragma: no cover
-                continue
-
-            value_raw = entry.get("value", 0)
-            dwell_raw = entry.get("dwell_us", 0)
-            value = int(value_raw)
-            dwell = int(dwell_raw)
-            encoded.append((value, dwell))
-
-        self._format_helper.append_line(
-            lines, 2, f"{cpp_helper}({2 * len(encoded)}),"
-        )
-        for value, dwell in encoded:
-            self._format_helper.append_line(lines, 3, f"{value},")
-            self._format_helper.append_line(lines, 3, f"{dwell},")
-
-    def _emit_switch_inputs(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        field_name: str,
-        config: dict[str, Any],
-    ) -> None:
-        entries = config.get(field_name, [])
-        words = []
-        if isinstance(entries, list):
-            for e in entries:
-                if isinstance(e, dict):
-                    io = resolve_reference(e.get("io", ""))
-                    words.append(io.upper() if io else "0")
-                    words.append(str(int(e.get("match", 1))))
-        self._format_helper.append_line(
-            lines, 2, f"{cpp_helper}({len(words)}),"
-        )
-        for w in words:
-            self._format_helper.append_line(lines, 3, f"{w},")
-
-    def _emit_switch_target(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        field_name: str,
-        config: dict[str, Any],
-    ) -> None:
-        target = config.get(field_name, [])
-        tgt_ref = resolve_reference(target[0]) if target else ""
-        tgt_id = tgt_ref.upper() if tgt_ref else "0"
-        on_cmd = str(int(target[1])) if len(target) > 1 else "1"
-        off_cmd = str(int(target[2])) if len(target) > 2 else "0"
-        self._format_helper.append_line(lines, 2, f"{cpp_helper}(),")
-        self._format_helper.append_line(lines, 3, f"{tgt_id},")
-        self._format_helper.append_line(lines, 3, f"{on_cmd},")
-        self._format_helper.append_line(lines, 3, f"{off_cmd},")
-
-    def _emit_bitpack_inputs(  # pragma: no cover
-        self,
-        lines: list[str],
-        cpp_helper: str,
-        field_name: str,
-        config: dict[str, Any],
-    ) -> None:
-        entries = config.get(field_name, [])
-        words = []
-        if isinstance(entries, list):
-            for e in entries:
-                if isinstance(e, dict):
-                    io = resolve_reference(e.get("io", ""))
-                    words.append(io.upper() if io else "0")
-                    words.append(str(int(e.get("bit", 0))))
-        self._format_helper.append_line(
-            lines, 2, f"{cpp_helper}({len(words)}),"
-        )
-        for w in words:
-            self._format_helper.append_line(lines, 3, f"{w},")
-
-    def _emit_type_field(  # noqa: C901  # pragma: no cover
-        self,
-        lines: list[str],
-        field_def: ConfigField,
-        obj: ProgramObject,
-        config: dict[str, Any],
-    ) -> None:
-        """Emit descriptor lines for one type-specific config field."""
-        field_name = field_def.name
-        value_type = field_def.value_type
-        cpp_helper = field_def.cpp_helper
-
-        if value_type == "id_array_pairs":
-            self._emit_id_array_pairs(lines, cpp_helper, obj, config)
-        elif value_type == "uint32":
-            self._emit_uint32(
-                lines, cpp_helper, field_name, config, field_def.default
-            )
-        elif value_type == "uint32_list":
-            self._emit_uint32_list(lines, cpp_helper, field_name, config)
-        elif value_type == "id_array":
-            self._emit_id_array(lines, cpp_helper, field_name, obj)
-        elif value_type == "id_list":
-            self._emit_id_list(lines, cpp_helper, field_name, config)
-        elif value_type == "id_single":
-            self._emit_id_single(lines, cpp_helper, field_name, obj)
-        elif value_type == "gateway_iobind":
-            self._emit_gateway_iobind(lines, cpp_helper, field_name, config)
-        elif value_type == "id_array_quads":
-            self._emit_id_array_quads(lines, cpp_helper, field_name, config)
-        elif value_type == "adjust_params":
-            self._emit_adjust_params(
-                lines, cpp_helper, field_name, obj, config
-            )
-        elif value_type == "fusion_params":
-            self._emit_fusion_params(
-                lines, cpp_helper, field_name, obj, config
-            )
-        elif value_type == "sequencer_states":
-            self._emit_sequencer_states(lines, cpp_helper, field_name, config)
-        elif value_type == "switch_inputs":
-            self._emit_switch_inputs(lines, cpp_helper, field_name, config)
-        elif value_type == "switch_target":
-            self._emit_switch_target(lines, cpp_helper, field_name, config)
-        elif value_type == "bitpack_inputs":
-            self._emit_bitpack_inputs(lines, cpp_helper, field_name, config)
-
     def generate_prog_config(  # pragma: no cover
         self, macro_name: str, obj: ProgramObject
     ) -> list[str]:
@@ -445,14 +68,7 @@ class ProgramConfigGenerator:
 
         # Type-specific custom iobind field replaces the standard iobind item
         has_custom_iobind = any(
-            f.value_type
-            in {
-                "id_array_pairs",
-                "gateway_iobind",
-                "id_array_quads",
-                "id_list",
-            }
-            for f in type_fields
+            f.value_type in _CUSTOM_IOBIND_VALUE_TYPES for f in type_fields
         )
 
         # Compute total number of config items
@@ -486,8 +102,20 @@ class ProgramConfigGenerator:
                 self._format_helper.append_line(lines, 3, f"{src.upper()},")
                 self._format_helper.append_line(lines, 3, f"{dst.upper()},")
 
-        # Process type-specific config items (each is a separate config entry)
-        for field_def in type_fields:
-            self._emit_type_field(lines, field_def, obj, config)
+        # Type-specific config items are owned by the program's handler; the
+        # handler's per-field hook covers program-specific value-types and the
+        # shared generic emitters cover the rest. A program type with config
+        # fields but no handler module (e.g. OOT types using only generic
+        # value-types) emits through the generic path directly.
+        if type_fields:
+            ctx = ProgFieldCppCtx(
+                self._format_helper, self._config_rw_grants()
+            )
+            if handler is not None:
+                handler.emit_config_cpp(lines, obj, config, type_fields, ctx)
+            else:
+                emit_config_fields_cpp(
+                    None, prog_type, lines, obj, config, type_fields, ctx
+                )
 
         return lines

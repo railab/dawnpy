@@ -4,6 +4,7 @@ from typing import Any
 
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.words import cfg_id
+from dawnpy.descriptor.handlers._prog_config_cpp import ProgFieldCppCtx
 from dawnpy.descriptor.support.utils import resolve_reference
 from dawnpy.headerdefs.bundle import header_cfg_id
 
@@ -41,6 +42,33 @@ def config_fields() -> list[ConfigField]:  # pragma: no cover
             value_type="id_single",
         ),
     ]
+
+
+def emit_config_field_cpp(
+    lines: list[str],
+    field_def: ConfigField,
+    obj: Any,
+    config: dict[str, Any],
+    ctx: ProgFieldCppCtx,
+) -> bool:
+    """Emit the ``bitpack`` inputs block; return whether handled."""
+    if field_def.value_type != "bitpack_inputs":
+        return False
+
+    entries = config.get(field_def.name, [])
+    words = []
+    if isinstance(entries, list):
+        for e in entries:
+            if isinstance(e, dict):
+                io = resolve_reference(e.get("io", ""))
+                words.append(io.upper() if io else "0")
+                words.append(str(int(e.get("bit", 0))))
+    ctx.format_helper.append_line(
+        lines, 2, f"{field_def.cpp_helper}({len(words)}),"
+    )
+    for w in words:
+        ctx.format_helper.append_line(lines, 3, f"{w},")
+    return True
 
 
 def output_shape_owned_virt_targets(obj: Any) -> set[str]:

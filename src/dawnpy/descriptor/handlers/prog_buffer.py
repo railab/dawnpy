@@ -16,6 +16,10 @@ from typing import TYPE_CHECKING
 
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.words import cfg_id
+from dawnpy.descriptor.handlers._prog_config_cpp import (
+    ProgFieldCppCtx,
+    resolve_id,
+)
 from dawnpy.descriptor.support.utils import (
     resolve_flexible_reference,
     resolve_reference,
@@ -23,6 +27,8 @@ from dawnpy.descriptor.support.utils import (
 from dawnpy.headerdefs.bundle import header_cfg_id
 
 if TYPE_CHECKING:
+    from typing import Any
+
     from dawnpy.descriptor.definitions.objects import ProgramObject
     from dawnpy.objectid import ObjectIdDecoder
 
@@ -63,6 +69,43 @@ def config_fields() -> list[ConfigField]:
             default="1",
         ),
     ]
+
+
+def emit_config_field_cpp(
+    lines: list[str],
+    field_def: ConfigField,
+    obj: ProgramObject,
+    config: dict[str, Any],
+    ctx: ProgFieldCppCtx,
+) -> bool:
+    """Emit the ``buffer`` iobind quads block; return whether handled."""
+    if field_def.value_type != "id_array_quads":
+        return False
+
+    entries = config.get(field_def.name, [])
+    if not isinstance(entries, list):
+        entries = []
+
+    resolved_quads: list[tuple[str, str, str, str]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        src = resolve_id(entry.get("src"))
+        out = resolve_id(entry.get("out"))
+        sel = resolve_id(entry.get("sel"))
+        stat = resolve_id(entry.get("stat"))
+        if not src or not out or not sel or not stat:
+            continue
+        resolved_quads.append((src, out, sel, stat))
+
+    size = 4 * len(resolved_quads)
+    ctx.format_helper.append_line(lines, 2, f"{field_def.cpp_helper}({size}),")
+    for src, out, sel, stat in resolved_quads:
+        ctx.format_helper.append_line(lines, 3, f"{src.upper()},")
+        ctx.format_helper.append_line(lines, 3, f"{out.upper()},")
+        ctx.format_helper.append_line(lines, 3, f"{sel.upper()},")
+        ctx.format_helper.append_line(lines, 3, f"{stat.upper()},")
+    return True
 
 
 def output_shape_owned_virt_targets(obj: ProgramObject) -> set[str]:

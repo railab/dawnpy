@@ -16,10 +16,13 @@ from typing import TYPE_CHECKING
 
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.words import cfg_id
+from dawnpy.descriptor.handlers._prog_config_cpp import ProgFieldCppCtx
 from dawnpy.descriptor.support.utils import resolve_references
 from dawnpy.headerdefs.bundle import header_cfg_id
 
 if TYPE_CHECKING:
+    from typing import Any
+
     from dawnpy.descriptor.definitions.objects import ProgramObject
     from dawnpy.objectid import ObjectIdDecoder
 
@@ -97,6 +100,39 @@ def config_fields() -> list[ConfigField]:  # pragma: no cover
 def output_shape_owned_virt_targets(obj: ProgramObject) -> set[str]:
     """Return all configured sequencer output-side targets."""
     return set(resolve_references(obj.config.get("targets", [])))
+
+
+def emit_config_field_cpp(
+    lines: list[str],
+    field_def: ConfigField,
+    obj: ProgramObject,
+    config: dict[str, Any],
+    ctx: ProgFieldCppCtx,
+) -> bool:
+    """Emit the ``sequencer`` states block; return whether handled."""
+    if field_def.value_type != "sequencer_states":
+        return False
+
+    entries = config.get(field_def.name, [])
+    encoded: list[tuple[int, int]] = []
+
+    if not isinstance(entries, list):
+        entries = []
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        value = int(entry.get("value", 0))
+        dwell = int(entry.get("dwell_us", 0))
+        encoded.append((value, dwell))
+
+    ctx.format_helper.append_line(
+        lines, 2, f"{field_def.cpp_helper}({2 * len(encoded)}),"
+    )
+    for value, dwell in encoded:
+        ctx.format_helper.append_line(lines, 3, f"{value},")
+        ctx.format_helper.append_line(lines, 3, f"{dwell},")
+    return True
 
 
 def config_reference_cpp_line(
