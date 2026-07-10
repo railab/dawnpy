@@ -19,6 +19,25 @@ from dawnpy.descriptor.generation.generator import DescriptorGenerator
 pytestmark = pytest.mark.usefixtures("source_free_headers")
 
 
+def test_generate_prog_config_uses_handler_generate_cpp(monkeypatch):
+    """A prog handler's generate_cpp fully owns its config block."""
+    from dawnpy.descriptor.handlers import prog_dummy
+
+    def gen_cpp(macro_name, obj, ctx):
+        assert ctx.format_helper is not None
+        return [f"    {macro_name}, CUSTOM,"]
+
+    monkeypatch.setattr(prog_dummy, "generate_cpp", gen_cpp, raising=False)
+
+    generator = DescriptorGenerator()
+    obj = ProgramObject.from_spec(
+        {"id": "prog1", "type": "dummy", "instance": 1, "config": {}}
+    )
+    assert obj is not None
+    lines = generator._generate_prog_config("PROG1", obj)
+    assert lines == ["    PROG1, CUSTOM,"]
+
+
 def test_generate_prog_config_handles_id_single(monkeypatch):
     generator = DescriptorGenerator()
     monkeypatch.setattr(

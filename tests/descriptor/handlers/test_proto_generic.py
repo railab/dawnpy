@@ -375,18 +375,46 @@ class TestProtoGenericHandlers:
         proto_gen = generator._protocol_config_generator()
         assert proto_gen._generic.generate_generic_field(10, field) == []
 
-    def test_generate_nxscope_iobind2_field_wrapper(self):
-        """Test nxscope_iobind2 wrapper delegates and formats output."""
-        generator = DescriptorGenerator()
-        proto_gen = generator._protocol_config_generator()._generic
-        lines = proto_gen.generate_nxscope_iobind2_field(
-            value=[{"id": "io1", "name": "chan1"}, "io2"],
-            field=ConfigField(name="iobind2", string_fixed_bytes=8),
-            cpp_helper="CProtoNxscope::cfgIdIOBind2",
+    def test_nxscope_handler_emit_config_field_cpp(self):
+        """The nxscope handler owns nxscope_iobind2 C++ emission."""
+        from types import SimpleNamespace
+
+        from dawnpy.descriptor.handlers.proto_nxscope_serial import (
+            emit_config_field_cpp,
         )
+        from dawnpy.descriptor.support.formatting import (
+            DescriptorFormatHelper,
+        )
+
+        ctx = SimpleNamespace(format_helper=DescriptorFormatHelper())
+        field = ConfigField(
+            name="iobind2",
+            cpp_helper="CProtoNxscope::cfgIdIOBind2",
+            value_type="nxscope_iobind2",
+            string_fixed_bytes=8,
+        )
+        lines: list[str] = []
+        handled = emit_config_field_cpp(
+            lines, field, [{"id": "io1", "name": "chan1"}, "io2"], ctx
+        )
+        assert handled is True
         assert lines[0] == "    CProtoNxscope::cfgIdIOBind2(2),"
         assert "      IO1," in lines
         assert "      IO2," in lines
+
+    def test_nxscope_handler_declines_other_value_type(self):
+        """The nxscope hook returns False for non-nxscope fields."""
+        from types import SimpleNamespace
+
+        from dawnpy.descriptor.handlers.proto_nxscope_serial import (
+            emit_config_field_cpp,
+        )
+
+        ctx = SimpleNamespace(format_helper=None)
+        field = ConfigField(name="path", cpp_helper="H", value_type="string")
+        lines: list[str] = []
+        assert emit_config_field_cpp(lines, field, "x", ctx) is False
+        assert lines == []
 
     def test_count_generic_proto_config_items(self):
         """Test counting with standard bindings and nested fields."""

@@ -14,6 +14,7 @@ from dawnpy.descriptor.handlers._proto_nxscope_common import (
     encode_nxscope_iobind2,
     iobind2_field,
     nxscope_allocation_rows,
+    nxscope_emit_config_field_cpp,
     resolve_nxscope_bindings,
 )
 
@@ -37,6 +38,7 @@ enum_value_maps: dict[str, tuple[str, str]] = {}
 defaults: dict[str, int] = {}
 fixed_string_bytes: dict[str, int] = {"nxscope_name": 12}
 resolve_bindings = resolve_nxscope_bindings
+emit_config_field_cpp = nxscope_emit_config_field_cpp
 
 
 def allocation_rows(proto: Any) -> list[list[str]]:  # pragma: no cover
