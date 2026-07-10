@@ -9,6 +9,8 @@ Each NXScope variant (dummy/serial/udp) emits the same iobind2 block
 plus its variant-specific fields in its own handler.
 """
 
+from typing import Any
+
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.proto_runtime import _ProtoSerializeContext
 from dawnpy.descriptor.encoding.words import (
@@ -72,6 +74,45 @@ def encode_nxscope_iobind2(ctx: _ProtoSerializeContext) -> None:
             ),
             bindings_words,
         )
+
+
+def nxscope_emit_config_field_cpp(
+    lines: list[str], field: ConfigField, value: Any, ctx: Any
+) -> bool:
+    """Emit the ``nxscope_iobind2`` C++ config field; return whether handled.
+
+    This is the per-handler C++ source hook counterpart to
+    :func:`encode_nxscope_iobind2` (the binary path). ``ctx`` is the
+    protocol generator context (provides ``format_helper``).
+    """
+    if field.value_type != "nxscope_iobind2":
+        return False
+
+    entries = value if isinstance(value, list) else []
+    resolved_entries: list[tuple[str, str]] = []
+    for entry in entries:
+        if isinstance(entry, str):
+            name = ""
+        elif isinstance(entry, dict):
+            name = entry.get("name", "")
+        else:
+            continue
+        resolved_id = resolve_flexible_reference(entry)
+        if resolved_id:
+            resolved_entries.append((resolved_id, name))
+
+    ctx.format_helper.append_line(
+        lines, 2, f"{field.cpp_helper}({len(resolved_entries)}),"
+    )
+    fixed_bytes = int(field.string_fixed_bytes or 12)
+    for obj_id, name in resolved_entries:
+        ctx.format_helper.append_line(lines, 3, f"{obj_id.upper()},")
+        ctx.format_helper.append_words(
+            lines,
+            ctx.format_helper.pack_fixed_string(str(name), fixed_bytes),
+            level=3,
+        )
+    return True
 
 
 def iobind2_field(cpp_class: str) -> ConfigField:

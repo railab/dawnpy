@@ -101,6 +101,10 @@ class ProgHandler(Protocol):
     nuttx_requirements: tuple[str, ...]
     nuttx_value_requirements: tuple[tuple[str, str, int], ...]
 
+    def __getattr__(self, name: str) -> Any:
+        """Allow optional per-handler C++ generator hooks."""
+        raise NotImplementedError
+
     @staticmethod
     def config_fields() -> list[ConfigField]:
         """Return the user-facing config schema for this prog type."""

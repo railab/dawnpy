@@ -17,6 +17,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from dawnpy.descriptor.config_access import ConfigRwGrants
+from dawnpy.descriptor.generation.prog_base import ProgGeneratorContext
 from dawnpy.descriptor.handlers import PROG_HANDLER_REGISTRY
 from dawnpy.descriptor.handlers._prog_config_cpp import (
     ProgFieldCppCtx,
@@ -59,6 +60,21 @@ class ProgramConfigGenerator:
         prog_type = obj.prog_type
         config = obj.config
 
+        handler = PROG_HANDLER_REGISTRY.get(prog_type)
+
+        # Per-type C++ emitter takes priority: a handler that owns its whole
+        # config block exposes generate_cpp(macro_name, obj, ctx) - symmetric
+        # with the IO/PROTO escape hatch. Handlers with only type-specific
+        # fields use the emit_config_field_cpp hook below instead.
+        if handler is not None and hasattr(handler, "generate_cpp"):
+            gctx = ProgGeneratorContext(
+                config_loader=self._config_loader,
+                prog_types=self._prog_types,
+                format_helper=self._format_helper,
+                config_rw_grants=self._config_rw_grants(),
+            )
+            return list(handler.generate_cpp(macro_name, obj, gctx))
+
         # Get program class info
         prog_info = self._prog_types[prog_type]
         cpp_class = prog_info.cpp_class
@@ -81,7 +97,6 @@ class ProgramConfigGenerator:
             lines, 1, f"{macro_name}, {cfg_count},"
         )
 
-        handler = PROG_HANDLER_REGISTRY.get(prog_type)
         iobind_handled = False
         if handler is not None and total_ids > 0:
             iobind_handled = handler.emit_iobind_cpp(

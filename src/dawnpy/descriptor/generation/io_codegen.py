@@ -205,6 +205,21 @@ class IoConfigGenerator:
             else []
         )
 
+        # Per-field C++ hook: an IO handler owns emission of its own
+        # type-specific value-types (symmetric with the binary path);
+        # anything it declines falls back to the generic loop below.
+        field_hook = getattr(handler, "emit_config_field_cpp", None)
+        hook_ctx = (
+            IoGeneratorContext(
+                config_loader=self._config_loader,
+                format_helper=self._format_helper,
+                objects=self._objects(),
+                config_rw_grants=self._config_rw_grants(),
+            )
+            if field_hook is not None
+            else None
+        )
+
         # Count how many config items are present. ``limits`` expands
         # into three cfg items (min/max/step), every other field is one.
         config_count = 0
@@ -224,6 +239,10 @@ class IoConfigGenerator:
         for field_def in field_defs:
             field_name = field_def.name
             if field_name in config:
+                if field_hook is not None and field_hook(
+                    lines, field_def, obj, hook_ctx
+                ):
+                    continue
                 cpp_helper = field_def.cpp_helper
                 value = config[field_name]
                 value_type = field_def.value_type or "auto"

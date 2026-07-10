@@ -7,15 +7,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from dawnpy.descriptor.definitions.type_info import ConfigField
-from dawnpy.descriptor.support.utils import resolve_flexible_reference
+from dawnpy.descriptor.handlers import PROTO_HANDLER_REGISTRY
 
 if TYPE_CHECKING:
     from dawnpy.descriptor.definitions.objects import ProtocolObject
 
     from .proto_base import ProtoGeneratorContext
+
+#: A protocol handler's per-field C++ hook: appends lines for its own
+#: protocol-specific value-types, returns whether it handled the field.
+ProtoFieldHook = Callable[[list[str], ConfigField, Any, Any], bool]
 
 
 class GenericProtoConfigGenerator:
@@ -71,48 +76,26 @@ class GenericProtoConfigGenerator:
             return len(values), all_words
         return len(all_words), all_words
 
-    def generate_nxscope_iobind2_field(
-        self, value: Any, field: ConfigField, cpp_helper: str
-    ) -> list[str]:
-        """Generate nxscope iobind2 config field."""
-        lines: list[str] = []
-        entries = value if isinstance(value, list) else []
-        resolved_entries = []
-        for entry in entries:
-            if isinstance(entry, str):
-                name = ""
-            elif isinstance(entry, dict):
-                name = entry.get("name", "")
-            else:
-                continue
-            resolved_id = resolve_flexible_reference(entry)
-            if resolved_id:
-                resolved_entries.append((resolved_id, name))
-
-        self.ctx.format_helper.append_line(
-            lines, 2, f"{cpp_helper}({len(resolved_entries)}),"
-        )
-        fixed_bytes = int(field.string_fixed_bytes or 12)
-        for obj_id, name in resolved_entries:
-            self.ctx.format_helper.append_line(lines, 3, f"{obj_id.upper()},")
-            self.ctx.format_helper.append_words(
-                lines,
-                self.ctx.format_helper.pack_fixed_string(
-                    str(name), fixed_bytes
-                ),
-                level=3,
-            )
-        return lines
-
     def generate_generic_field(
-        self, value: Any, field: ConfigField
+        self,
+        value: Any,
+        field: ConfigField,
+        hook: ProtoFieldHook | None = None,
     ) -> list[str]:
-        """Generate lines for one generic custom protocol field."""
+        """Generate lines for one custom protocol field.
+
+        The owning handler's ``emit_config_field_cpp`` hook is offered the
+        field first (protocol-specific value-types); anything it declines
+        falls back to the shared generic value-types below.
+        """
         lines: list[str] = []
         cpp_helper = field.cpp_helper
         value_type = field.value_type
 
         if not cpp_helper:
+            return lines
+
+        if hook is not None and hook(lines, field, value, self.ctx):
             return lines
 
         if value_type == "string":
@@ -122,11 +105,6 @@ class GenericProtoConfigGenerator:
             )
             self.ctx.format_helper.append_words(lines, packed_words, level=3)
             return lines
-
-        if value_type == "nxscope_iobind2":
-            return self.generate_nxscope_iobind2_field(
-                value, field, cpp_helper
-            )
 
         if value_type == "string_array":
             size_value, all_words = self.pack_string_array_field(value, field)
@@ -168,13 +146,16 @@ class GenericProtoConfigGenerator:
             lines, 1, f"{macro_name}, {config_count},"
         )
 
+        handler = PROTO_HANDLER_REGISTRY.get(proto_type)
+        hook = getattr(handler, "emit_config_field_cpp", None)
+
         for field in fields:
             if field.nested:
                 continue  # pragma: no cover
             if field.name not in config:
                 continue  # pragma: no cover
             lines.extend(
-                self.generate_generic_field(config[field.name], field)
+                self.generate_generic_field(config[field.name], field, hook)
             )
 
         if uses_standard and bindings:

@@ -18,6 +18,63 @@ pytestmark = pytest.mark.usefixtures("source_free_headers")
 
 class TestIoHandlers:
 
+    def test_generate_io_config_field_hook(self, generator, monkeypatch):
+        """A handler's emit_config_field_cpp owns its type-specific field.
+
+        Fields the hook declines fall back to the generic loop.
+        """
+        from dawnpy.descriptor.handlers import io_dummy
+
+        def hook(lines, field_def, obj, ctx):
+            if field_def.value_type != "custom_io":
+                return False
+            ctx.format_helper.append_line(
+                lines, 2, f"{field_def.cpp_helper}(),"
+            )
+            ctx.format_helper.append_line(lines, 3, "42,")
+            return True
+
+        monkeypatch.setattr(
+            io_dummy, "emit_config_field_cpp", hook, raising=False
+        )
+        monkeypatch.setattr(
+            generator.config_loader,
+            "get_io_config_fields",
+            lambda io_type: [
+                ConfigField(
+                    name="foo",
+                    value_type="custom_io",
+                    cpp_helper="CIODummy::cfgIdFoo",
+                ),
+                ConfigField(
+                    name="bar",
+                    value_type="int",
+                    cpp_helper="CIODummy::cfgIdBar",
+                ),
+            ],
+        )
+        obj = IoObject(
+            obj_id="d1",
+            io_type="dummy",
+            dtype="uint32",
+            instance=1,
+            timestamp=False,
+            rw=False,
+            notify=False,
+            tags=[],
+            config={"foo": 1, "bar": 7},
+            subtype=None,
+            variant=None,
+        )
+        lines = generator._generate_io_config("D1", obj)
+        joined = "\n".join(lines)
+        # hook owned 'foo'
+        assert "CIODummy::cfgIdFoo()," in joined
+        assert "      42," in lines
+        # hook declined 'bar' -> generic scalar emission
+        assert "CIODummy::cfgIdBar()," in joined
+        assert "      7," in lines
+
     def test_generate_io_config_no_config(self, generator):
         """Test generating IO config with no configuration."""
         obj = IoObject(
