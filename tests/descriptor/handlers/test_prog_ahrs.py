@@ -1,9 +1,9 @@
-# tools/dawnpy/tests/descriptor/handlers/test_prog_fusion.py
+# tools/dawnpy/tests/descriptor/handlers/test_prog_ahrs.py
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
-"""Tests for the ``fusion`` PROG handler."""
+"""Tests for the ``ahrs`` PROG handler."""
 
 import struct
 
@@ -12,7 +12,7 @@ import pytest
 from dawnpy.descriptor.definitions.objects import ProgramObject
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.handlers import PROG_HANDLER_REGISTRY
-from dawnpy.descriptor.handlers.prog_fusion import (
+from dawnpy.descriptor.handlers.prog_ahrs import (
     PARAM_DEFAULTS,
     PARAM_ORDER,
     emit_config_field_cpp,
@@ -33,8 +33,8 @@ def _f32(value: float) -> int:
 
 def _obj(config: dict | None = None) -> ProgramObject:
     return ProgramObject(
-        obj_id="fusion1",
-        prog_type="fusion",
+        obj_id="ahrs1",
+        prog_type="ahrs",
         instance=0,
         inputs=[],
         outputs=[],
@@ -58,10 +58,10 @@ def _obj(config: dict | None = None) -> ProgramObject:
     )
 
 
-class TestFusionHandler:
+class TestAhrsHandler:
 
     def test_registered(self):
-        assert "fusion" in PROG_HANDLER_REGISTRY
+        assert "ahrs" in PROG_HANDLER_REGISTRY
 
     def test_encode_binary_words(self):
         items = []
@@ -182,11 +182,11 @@ class TestFusionHandler:
     def test_mag_is_optional(self):
         assert validate_object(_obj()) == []
 
-    def test_emit_fusion_params(self):
+    def test_emit_ahrs_params(self):
         field = ConfigField(
             name="params",
-            cpp_helper="CProgFusion::cfgParams",
-            value_type="fusion_params",
+            cpp_helper="CProgAhrs::cfgParams",
+            value_type="ahrs_params",
         )
         lines: list[str] = []
 
@@ -196,38 +196,38 @@ class TestFusionHandler:
 
         assert handled is True
         assert lines == [
-            "    CProgFusion::cfgParams(),",
+            "    CProgAhrs::cfgParams(),",
             f"      {_f32(0.5):#010x},",
             f"      {_f32(10.0):#010x},",
             f"      {_f32(5.0):#010x},",
             f"      {_f32(50.0):#010x},",
         ]
 
-    def test_emit_fusion_params_rw_when_granted(self):
+    def test_emit_ahrs_params_rw_when_granted(self):
         field = ConfigField(
             name="params",
-            cpp_helper="CProgFusion::cfgParams",
-            value_type="fusion_params",
+            cpp_helper="CProgAhrs::cfgParams",
+            value_type="ahrs_params",
         )
         lines: list[str] = []
-        ctx = prog_cpp_ctx({("fusion1", "params"): True})
+        ctx = prog_cpp_ctx({("ahrs1", "params"): True})
 
         emit_config_field_cpp(lines, field, _obj(), _obj().config, ctx)
 
-        assert lines[0] == "    CProgFusion::cfgParams(true),"
+        assert lines[0] == "    CProgAhrs::cfgParams(true),"
 
-    def test_emit_fusion_params_non_dict_uses_defaults(self):
+    def test_emit_ahrs_params_non_dict_uses_defaults(self):
         field = ConfigField(
             name="params",
-            cpp_helper="CProgFusion::cfgParams",
-            value_type="fusion_params",
+            cpp_helper="CProgAhrs::cfgParams",
+            value_type="ahrs_params",
         )
         lines: list[str] = []
         emit_config_field_cpp(
             lines, field, _obj(), {"params": "nonsense"}, prog_cpp_ctx()
         )
         assert lines == [
-            "    CProgFusion::cfgParams(),",
+            "    CProgAhrs::cfgParams(),",
             *[f"      {_f32(PARAM_DEFAULTS[n]):#010x}," for n in PARAM_ORDER],
         ]
 

@@ -115,7 +115,7 @@ def test_capabilities_decode_command_file():
         assert "IO classes enabled" in result.output
         assert "dummy" in result.output
         assert "bitpack" in result.output
-        assert "bit_split" in result.output
+        assert "bit_pack" in result.output
         assert "can" in result.output
         assert "modbus_rtu" in result.output
 
