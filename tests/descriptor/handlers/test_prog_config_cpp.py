@@ -245,7 +245,7 @@ class TestGenericEmitters:
         lines: list[str] = []
         handled = emit_generic_config_field(
             lines,
-            _field("fusion_params", name="params"),
+            _field("ahrs_params", name="params"),
             _obj(),
             {"params": {}},
             prog_cpp_ctx(),
@@ -325,13 +325,13 @@ class TestEmitConfigFieldsDispatch:
         def hook(lines, field_def, obj, config, ctx):
             return False
 
-        with pytest.raises(ValueError, match="fusion_params"):
+        with pytest.raises(ValueError, match="ahrs_params"):
             emit_config_fields_cpp(
                 hook,
-                "fusion",
+                "ahrs",
                 [],
                 _obj(),
                 {"params": {}},
-                [_field("fusion_params", name="params", cpp_helper="H")],
+                [_field("ahrs_params", name="params", cpp_helper="H")],
                 prog_cpp_ctx(),
             )

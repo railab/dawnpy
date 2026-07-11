@@ -35,7 +35,7 @@ class ProgFieldCppCtx:
 
     :ivar format_helper: Emits indented C++ source lines.
     :ivar rw_grants: Resolved ``(obj_id, field_name) -> rw`` write grants so
-        rw-aware fields (``adjust``/``fusion`` params) emit the same rw flag
+        rw-aware fields (``adjust``/``ahrs`` params) emit the same rw flag
         the referencing config IO does.
     """
 

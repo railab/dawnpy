@@ -1,9 +1,9 @@
-# tools/dawnpy/src/dawnpy/descriptor/handlers/prog_fusion.py
+# tools/dawnpy/src/dawnpy/descriptor/handlers/prog_ahrs.py
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
-"""Handler for the ``fusion`` PROG type (AHRS sensor fusion)."""
+"""Handler for the ``ahrs`` PROG type (AHRS sensor fusion)."""
 
 from typing import Any
 
@@ -18,10 +18,10 @@ from dawnpy.descriptor.handlers._prog_config_cpp import ProgFieldCppCtx
 from dawnpy.descriptor.support.utils import resolve_reference
 from dawnpy.headerdefs.bundle import header_cfg_id
 
-yaml_type: str = "fusion"
-cpp_class: str = "CProgFusion"
+yaml_type: str = "ahrs"
+cpp_class: str = "CProgAhrs"
 
-#: Param encode order -- must match ``SProgFusionParams`` in fusion.hxx.
+#: Param encode order -- must match ``SProgAhrsParams`` in ahrs.hxx.
 PARAM_ORDER: tuple[str, ...] = (
     "gain",
     "accel_rejection",
@@ -46,7 +46,7 @@ _OPTIONAL_ID_FIELDS: tuple[tuple[str, str], ...] = (("mag", "cfgIdMag"),)
 
 
 def config_fields() -> list[ConfigField]:  # pragma: no cover
-    """Return the user-facing YAML config schema for ``fusion``."""
+    """Return the user-facing YAML config schema for ``ahrs``."""
     return [
         ConfigField(
             name="accel",
@@ -71,10 +71,10 @@ def config_fields() -> list[ConfigField]:  # pragma: no cover
         ConfigField(
             name="params",
             cpp_helper=f"{cpp_class}::cfgParams",
-            value_type="fusion_params",
+            value_type="ahrs_params",
             # cfgParams(bool rw): a writable config IO targeting these
             # params makes them runtime-writable
-            # (CProgFusion::onSetObjConfig).
+            # (CProgAhrs::onSetObjConfig).
             params=["rw"],
         ),
     ]
@@ -100,8 +100,8 @@ def emit_config_field_cpp(
     config: dict[str, Any],
     ctx: ProgFieldCppCtx,
 ) -> bool:
-    """Emit the ``fusion`` params block; return whether handled."""
-    if field_def.value_type != "fusion_params":
+    """Emit the ``ahrs`` params block; return whether handled."""
+    if field_def.value_type != "ahrs_params":
         return False
 
     params = config.get(field_def.name, {})
@@ -127,7 +127,7 @@ def validate_object(obj: Any) -> list[str]:
     """Require the accel/gyro/output references."""
     config = obj.config if isinstance(obj.config, dict) else {}
     return [
-        f"Program {obj.obj_id} invalid: fusion requires '{name}'"
+        f"Program {obj.obj_id} invalid: ahrs requires '{name}'"
         for name, _ in _ID_FIELDS
         if not resolve_reference(config.get(name))
     ]
@@ -142,7 +142,7 @@ def validate_object_refs(obj: Any, io_map: dict[str, Any]) -> list[str]:
         io = io_map.get(ref) if ref else None
         if io is not None and io.dtype != "float":
             errors.append(
-                f"Program {obj.obj_id} invalid: fusion '{name}' IO "
+                f"Program {obj.obj_id} invalid: ahrs '{name}' IO "
                 f"'{ref}' dtype '{io.dtype}' must be 'float'"
             )
     return errors
@@ -161,7 +161,7 @@ def encode_binary(
     obj_ids: dict[str, int],
     decoder: Any,
 ) -> None:
-    """Append ``fusion``-specific config items to ``items``."""
+    """Append ``ahrs``-specific config items to ``items``."""
     del decoder
 
     config = obj.config if isinstance(obj.config, dict) else {}
