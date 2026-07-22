@@ -114,8 +114,19 @@ def test_capabilities_decode_command_file():
         assert "Build flags: os_nuttx, desc_dynamic" in result.output
         assert "IO classes enabled" in result.output
         assert "dummy" in result.output
-        assert "bitpack" in result.output
-        assert "bit_pack" in result.output
+        # PROG class ids are positional in the fixture header, so adding a
+        # handler renumbers them. Assert the enabled ids resolve to names
+        # instead of pinning handler discovery order.
+        prog_section = result.output.split("PROG classes enabled")[1]
+        prog_section = prog_section.split("PROTO classes enabled")[0]
+        prog_names = [
+            ln.split(": ", 1)[1]
+            for ln in prog_section.splitlines()
+            if ln.strip().startswith("- ")
+        ]
+        assert len(prog_names) == len(_CAPS_PROG_BITS)
+        assert "unknown" not in prog_names
+        assert "bitmerge" in prog_names
         assert "can" in result.output
         assert "modbus_rtu" in result.output
 
