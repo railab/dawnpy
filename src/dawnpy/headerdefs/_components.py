@@ -47,6 +47,7 @@ def _component_kconfig(kind: str, cpp_class: str) -> str:
         "ThresholdValue": "THRESHOLD_VALUE",
         "BitSplit": "BITSPLIT",
         "BitPack": "BITPACK",
+        "BitMerge": "BITMERGE",
         "VecPack": "VECPACK",
         "VecSplit": "VECSPLIT",
         "ManyToOne": "MANYTOONE",
