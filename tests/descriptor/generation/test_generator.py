@@ -792,8 +792,9 @@ ios:
         cpp_code = generator.generate(str(yaml_file))
 
         assert "CIOSensorProducer::objectIdTemp" in cpp_code
-        assert "CIOSensorProducer::cfgIdQueueSize" in cpp_code
-        assert "CIOSensorProducer::cfgIdPersist" in cpp_code
+        cls = "CIOCommon::IO_CLASS_SENSOR_PRODUCER_TEMPERATURE"
+        assert f"CIOSensorProducer::cfgIdQueueSize({cls})" in cpp_code
+        assert f"CIOSensorProducer::cfgIdPersist({cls})" in cpp_code
         assert "DTYPE_FLOAT" in cpp_code
 
     def test_variant_io_generation(self, tmp_path):
