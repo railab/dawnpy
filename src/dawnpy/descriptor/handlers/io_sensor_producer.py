@@ -69,7 +69,17 @@ def emit_config_field_cpp(
     ctx: IoGeneratorContext,
 ) -> bool:
     """Emit a config ID tagged with the concrete producer class."""
+    if not field.cpp_helper.startswith(f"{cpp_class}::"):
+        return False
+
     suffix = _CLASS_SUFFIXES[str(obj.subtype)]
     cls = f"CIOCommon::IO_CLASS_SENSOR_PRODUCER_{suffix}"
     ctx.format_helper.append_line(lines, 2, f"{field.cpp_helper}({cls}),")
+    value = obj.config[field.name]
+    formatted = (
+        ("true" if value else "false")
+        if isinstance(value, bool)
+        else str(int(value))
+    )
+    ctx.format_helper.append_line(lines, 3, f"{formatted},")
     return True
