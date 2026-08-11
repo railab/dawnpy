@@ -795,8 +795,12 @@ ios:
         cls = "CIOCommon::IO_CLASS_SENSOR_PRODUCER_TEMPERATURE"
         assert "CIOCommon::cfgIdDevno()," in cpp_code
         assert f"CIOCommon::cfgIdDevno({cls})" not in cpp_code
-        assert f"CIOSensorProducer::cfgIdQueueSize({cls})" in cpp_code
-        assert f"CIOSensorProducer::cfgIdPersist({cls})" in cpp_code
+        assert (
+            f"CIOSensorProducer::cfgIdQueueSize({cls}),\n      4," in cpp_code
+        )
+        assert (
+            f"CIOSensorProducer::cfgIdPersist({cls}),\n      true," in cpp_code
+        )
         assert "DTYPE_FLOAT" in cpp_code
 
     def test_variant_io_generation(self, tmp_path):
