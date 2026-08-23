@@ -24,7 +24,22 @@ from dawnpy.descriptor.handlers import (
 )
 from dawnpy.descriptor.support.vars import load_yaml_with_vars
 from dawnpy.headerdefs import HeaderDefsError
+from dawnpy.headerdefs import _kconfig as kconfig_defs
 from dawnpy.headerdefs.bundle import header_component_defs
+
+
+def _implicit_choice_configs(enabled: set[str]) -> set[str]:
+    """Return Kconfig choice defaults implied by the enabled config set.
+
+    Kconfig sets a choice's default itself, so that symbol never appears
+    in a defconfig and must not be reported missing. Yields nothing when
+    Dawn sources are unavailable (standalone dawnpy runs).
+    """
+    try:
+        choices = kconfig_defs.load_header_kconfig_choices()
+    except HeaderDefsError:
+        return set()
+    return kconfig_defs.implicit_choice_configs(enabled, choices)
 
 
 class ValidationError(BaseModel):
@@ -604,6 +619,7 @@ class DescriptorValidator:
         enabled_configs: set[str] = {
             key for key, value in config_values.items() if value is True
         }
+        enabled_configs |= _implicit_choice_configs(enabled_configs)
 
         if not includes:
             errors.append(
@@ -665,6 +681,7 @@ class DescriptorValidator:
         enabled_configs = {
             key for key, value in config_values.items() if value is True
         }
+        enabled_configs |= _implicit_choice_configs(enabled_configs)
         err, used_cls, miss_cfg, used_cfg = (
             self._validate_handler_requirements(
                 yaml_path, kconfig_path, enabled_configs, config_values

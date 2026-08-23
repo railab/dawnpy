@@ -1247,3 +1247,18 @@ class TestMissingConfigFile:
             RuntimeError, match="Failed to load descriptor config"
         ):
             DescriptorValidator()
+
+
+def test_implicit_choice_configs_without_dawn_sources(monkeypatch):
+    """Choice defaults are unavailable when Dawn sources are absent."""
+    import dawnpy.descriptor.validation.validator as validator_mod
+    from dawnpy.headerdefs import HeaderDefsError
+
+    def _raise() -> None:
+        raise HeaderDefsError("no sources")
+
+    monkeypatch.setattr(
+        validator_mod.kconfig_defs, "load_header_kconfig_choices", _raise
+    )
+
+    assert validator_mod._implicit_choice_configs(set()) == set()

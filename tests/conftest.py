@@ -46,10 +46,14 @@ def block_dawn_source_reads(monkeypatch, request):
         yield
         return
 
+    import dawnpy.headerdefs._kconfig as headerdefs_kconfig
     import dawnpy.headerdefs._paths as headerdefs_paths
 
     monkeypatch.setattr(
         headerdefs_paths, "_repo_root_from_here", blocked_repo_root_lookup
+    )
+    monkeypatch.setattr(
+        headerdefs_kconfig, "load_header_kconfig_choices", tuple
     )
 
     import dawnpy.descriptor.definitions.registry as registry

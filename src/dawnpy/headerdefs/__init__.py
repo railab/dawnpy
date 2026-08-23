@@ -15,6 +15,10 @@ from ._components import (
     load_header_component_defs,
     load_header_metadata_defs,
 )
+from ._kconfig import (
+    implicit_choice_configs,
+    load_header_kconfig_choices,
+)
 from ._loader import load_header_defs
 from ._nimble import load_header_nimble_service_defs
 from ._paths import HeaderDefsError, find_repo_root
@@ -42,6 +46,8 @@ __all__ = [
     "HeaderLookupFunctions",
     "find_repo_root",
     "header_enum_map",
+    "implicit_choice_configs",
+    "load_header_kconfig_choices",
     "load_header_bundle",
     "load_header_definition_set",
     "load_header_defs",
