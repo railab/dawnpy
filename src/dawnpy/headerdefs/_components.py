@@ -61,6 +61,9 @@ def _component_kconfig(kind: str, cpp_class: str) -> str:
         "NimblePrphDis": "NIMBLE_DIS",
         "NimblePrphEss": "NIMBLE_ESS",
         "NimblePrphImds": "NIMBLE_IMDS",
+        "NimblePrphOts": "NIMBLE_OTS",
+        # prph_custom.cxx builds with prph.cxx; it has no Kconfig of its own.
+        "NimblePrphCustom": "NIMBLE_PERIPHERAL",
     }
 
     token: str | None = None
@@ -85,6 +88,8 @@ def _is_component_class(kind: str, cpp_class: str) -> bool:
     """Return True for component classes mapped in descriptor validation."""
     skip_exact = {
         "io": {
+            "CIOAdcBase",
+            "CIOBatteryBase",
             "CIOCommon",
             "CIOFactory",
             "CIOHandler",
