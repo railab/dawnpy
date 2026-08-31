@@ -1261,4 +1261,58 @@ def test_implicit_choice_configs_without_dawn_sources(monkeypatch):
         validator_mod.kconfig_defs, "load_header_kconfig_choices", _raise
     )
 
-    assert validator_mod._implicit_choice_configs(set()) == set()
+    assert validator_mod._implicit_choice_configs(set()) == (set(), False)
+
+
+def test_missing_dawn_sources_are_reported_not_silently_ignored(
+    monkeypatch, tmp_path
+):
+    """A degraded choice-default check must be visible in the result."""
+    import dawnpy.descriptor.validation.validator as validator_mod
+    from dawnpy.headerdefs import HeaderDefsError
+
+    def _raise() -> None:
+        raise HeaderDefsError("no sources")
+
+    monkeypatch.setattr(
+        validator_mod.kconfig_defs, "load_header_kconfig_choices", _raise
+    )
+
+    (tmp_path / "descriptor.cxx").write_text('#include "dawn/io/dummy.hxx"\n')
+    (tmp_path / "defconfig").write_text("CONFIG_DAWN_IO_DUMMY=y\n")
+
+    result = validator_mod.DescriptorValidator().validate(str(tmp_path))
+
+    warnings = [e for e in result.errors if e.severity == "warning"]
+    assert any(
+        validator_mod.CHOICE_DEFAULTS_UNAVAILABLE in w.message
+        for w in warnings
+    )
+
+
+def test_generated_config_reports_missing_dawn_sources(monkeypatch, tmp_path):
+    """The build-time check must surface a degraded run too."""
+    import dawnpy.descriptor.validation.validator as validator_mod
+    from dawnpy.headerdefs import HeaderDefsError
+
+    def _raise() -> None:
+        raise HeaderDefsError("no sources")
+
+    monkeypatch.setattr(
+        validator_mod.kconfig_defs, "load_header_kconfig_choices", _raise
+    )
+
+    yaml_path = tmp_path / "descriptor.yaml"
+    yaml_path.write_text("ios:\n- id: d0\n  type: dummy\n  dtype: bool\n")
+    dot_config = tmp_path / ".config"
+    dot_config.write_text("CONFIG_DAWN_IO_DUMMY=y\n")
+
+    result = validator_mod.DescriptorValidator().validate_generated_config(
+        yaml_path, dot_config
+    )
+
+    assert any(
+        validator_mod.CHOICE_DEFAULTS_UNAVAILABLE in e.message
+        for e in result.errors
+        if e.severity == "warning"
+    )
