@@ -27,19 +27,27 @@ from dawnpy.headerdefs import HeaderDefsError
 from dawnpy.headerdefs import _kconfig as kconfig_defs
 from dawnpy.headerdefs.bundle import header_component_defs
 
+# Reported when choice defaults could not be resolved, so a degraded
+# run is visible instead of silently emitting false "missing" errors.
+CHOICE_DEFAULTS_UNAVAILABLE = (
+    "Kconfig choice defaults unavailable (Dawn sources not found); a "
+    "symbol enabled only by a choice default is reported as missing"
+)
 
-def _implicit_choice_configs(enabled: set[str]) -> set[str]:
-    """Return Kconfig choice defaults implied by the enabled config set.
+
+def _implicit_choice_configs(enabled: set[str]) -> tuple[set[str], bool]:
+    """Return choice defaults implied by ``enabled`` and whether known.
 
     Kconfig sets a choice's default itself, so that symbol never appears
-    in a defconfig and must not be reported missing. Yields nothing when
-    Dawn sources are unavailable (standalone dawnpy runs).
+    in a defconfig and must not be reported missing. The second element
+    is False when Dawn sources are unavailable (standalone dawnpy runs),
+    meaning the caller cannot tell a missing symbol from a defaulted one.
     """
     try:
         choices = kconfig_defs.load_header_kconfig_choices()
     except HeaderDefsError:
-        return set()
-    return kconfig_defs.implicit_choice_configs(enabled, choices)
+        return set(), False
+    return kconfig_defs.implicit_choice_configs(enabled, choices), True
 
 
 class ValidationError(BaseModel):
@@ -619,7 +627,16 @@ class DescriptorValidator:
         enabled_configs: set[str] = {
             key for key, value in config_values.items() if value is True
         }
-        enabled_configs |= _implicit_choice_configs(enabled_configs)
+        implicit, choices_known = _implicit_choice_configs(enabled_configs)
+        enabled_configs |= implicit
+        if not choices_known:
+            errors.append(
+                ValidationError(
+                    severity="warning",
+                    message=CHOICE_DEFAULTS_UNAVAILABLE,
+                    location=str(defconfig_path),
+                )
+            )
 
         if not includes:
             errors.append(
@@ -681,7 +698,16 @@ class DescriptorValidator:
         enabled_configs = {
             key for key, value in config_values.items() if value is True
         }
-        enabled_configs |= _implicit_choice_configs(enabled_configs)
+        implicit, choices_known = _implicit_choice_configs(enabled_configs)
+        enabled_configs |= implicit
+        if not choices_known:
+            errors.append(
+                ValidationError(
+                    severity="warning",
+                    message=CHOICE_DEFAULTS_UNAVAILABLE,
+                    location=str(kconfig_path),
+                )
+            )
         err, used_cls, miss_cfg, used_cfg = (
             self._validate_handler_requirements(
                 yaml_path, kconfig_path, enabled_configs, config_values
