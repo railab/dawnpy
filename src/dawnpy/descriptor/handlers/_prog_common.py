@@ -9,6 +9,7 @@ from typing import Any
 
 from dawnpy.descriptor.definitions.type_info import ConfigField
 from dawnpy.descriptor.encoding.words import append_cfg_item, cfg_id
+from dawnpy.descriptor.support.utils import resolve_references
 from dawnpy.headerdefs.bundle import header_cfg_id
 
 
@@ -39,8 +40,8 @@ def append_standard_iobind(
 ) -> None:
     """Append the common sources/outputs IO binding block."""
     config = obj.config if isinstance(obj.config, dict) else {}
-    sources = config.get("sources", obj.inputs)
-    outputs = config.get("outputs", obj.outputs)
+    sources = resolve_references(config.get("sources", obj.inputs))
+    outputs = resolve_references(config.get("outputs", obj.outputs))
     source_ids = [obj_ids[src] for src in sources if src in obj_ids]
     output_ids = [obj_ids[out] for out in outputs if out in obj_ids]
     if len(source_ids) != len(output_ids):
