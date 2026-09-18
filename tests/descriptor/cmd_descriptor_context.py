@@ -75,9 +75,7 @@ from dawnpy.descriptor.handlers._allocation import (
 )
 from dawnpy.descriptor.handlers._allocation import fmt_hex as _fmt_hex
 from dawnpy.descriptor.handlers._allocation import fmt_value as _fmt_value
-from dawnpy.descriptor.handlers._allocation import (
-    try_parse_int,
-)
+from dawnpy.descriptor.handlers._allocation import try_parse_int
 from dawnpy.descriptor.handlers._io_dummy_common import (
     _pack_init_value as _coerce_u32_words_for_dtype,
 )
@@ -146,6 +144,7 @@ def mock_header_cfg_id(monkeypatch):
         ("CIOPwm", "cfgIdFreq"): 17,
         ("CIOPulseCount", "cfgIdHighNs"): 18,
         ("CIOPulseCount", "cfgIdLowNs"): 19,
+        ("CIOPot", "cfgIdWiper"): 20,
         ("CIOCommon", "cfgIdDevno"): 4,
         ("CIOCommon", "cfgIdNotify"): 5,
         ("CIOCommon", "cfgIdLimitMin"): 1,

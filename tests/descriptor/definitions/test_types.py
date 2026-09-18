@@ -627,6 +627,21 @@ class TestHelperCallEdgeCases:
         assert "false" in call  # timestamp=False
         assert "1" in call  # instance=1
 
+    def test_pot_io(self):
+        """Test POT IO generation."""
+        cpp_class, call = get_io_helper_call(
+            io_type="pot",
+            subtype=None,
+            variant=None,
+            dtype="int32",
+            instance=1,
+            flags={},
+        )
+        assert cpp_class == "CIOPot"
+        assert "CIOPot::objectId" in call
+        assert "false" in call  # timestamp=False
+        assert "1" in call  # instance=1
+
     def test_rand_io(self):
         """Test random IO generation."""
         cpp_class, call = get_io_helper_call(
