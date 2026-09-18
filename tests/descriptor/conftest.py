@@ -44,6 +44,7 @@ _IO_PARAM_OVERRIDES = {
     "adc_sync": ["timestamp", "instance"],
     "adc_stream": ["timestamp", "instance"],
     "dac": ["timestamp", "instance"],
+    "pot": ["timestamp", "instance"],
     "leds": ["timestamp", "instance"],
     "rgb_led": ["timestamp", "instance"],
     "buttons": ["timestamp", "instance"],

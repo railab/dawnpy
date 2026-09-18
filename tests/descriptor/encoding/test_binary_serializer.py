@@ -142,6 +142,47 @@ def test_generate_descriptor_binary_pwm_without_freq_has_no_type_config(
     assert freq_cfg not in words
 
 
+def test_generate_descriptor_binary_pot_wiper_config(mock_header_cfg_id):
+    decoder = ObjectIdDecoder()
+    io_cls = next(
+        cls for cls, name in decoder.io_classes.items() if name == "pot"
+    )
+    dtype = next(
+        dtype_id
+        for dtype_id, info in decoder.dtype_info.items()
+        if info["type"] == "uint32"
+    )
+    wiper_cfg = cfg_id(
+        1, io_cls, dtype, False, 1, header_cfg_id("CIOPot", "cfgIdWiper")
+    )
+
+    def _pot(instance: int, config: dict) -> IoObject:
+        return IoObject(
+            obj_id=f"pot{instance}",
+            io_type="pot",
+            instance=instance,
+            dtype="int32",
+            tags=[],
+            config=config,
+            timestamp=False,
+            notify=False,
+            rw=False,
+            subtype=None,
+            variant=None,
+        )
+
+    words: list[int] = []
+    _serialize_io_object(
+        words, _pot(0, {"device": 0, "wiper": 3}), {}, decoder
+    )
+    assert wiper_cfg in words
+    assert words[words.index(wiper_cfg) + 1] == 3
+
+    words = []
+    _serialize_io_object(words, _pot(1, {"device": 0}), {}, decoder)
+    assert wiper_cfg not in words
+
+
 def test_generate_descriptor_binary_pulsecount_timing_config(
     mock_header_cfg_id,
 ):

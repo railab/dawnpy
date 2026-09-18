@@ -388,6 +388,7 @@ def get_io_helper_call(
         "adc_sync",
         "adc_stream",
         "dac",
+        "pot",
         "leds",
         "rgb_led",
         "buttons",
