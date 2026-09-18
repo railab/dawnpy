@@ -19,13 +19,11 @@ from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Any, Iterator, TypeVar
 
+import dawnpy.descriptor.definitions.type_info as _type_info
 import dawnpy.headerdefs.bundle as header_bundle
 
 # Re-export the public TypeInfo dataclasses so consumers and OOT users
 # can keep importing them from dawnpy.descriptor.definitions.registry.
-from dawnpy.descriptor.definitions.type_info import (  # noqa: F401
-    ConfigField as ConfigField,
-)
 from dawnpy.descriptor.definitions.type_info import IOTypeInfo as IOTypeInfo
 from dawnpy.descriptor.definitions.type_info import (
     ProgTypeInfo as ProgTypeInfo,
@@ -41,6 +39,9 @@ from dawnpy.descriptor.definitions.type_info import (
 )
 from dawnpy.headerdefs.bundle import HeaderBundle
 from dawnpy.logger import logger
+
+# ConfigField is unused here, so it is re-exported by assignment
+ConfigField = _type_info.ConfigField
 
 _T = TypeVar("_T")
 
