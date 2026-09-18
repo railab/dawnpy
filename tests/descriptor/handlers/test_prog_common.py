@@ -75,3 +75,24 @@ def test_generate_prog_config_handles_id_single(monkeypatch):
     assert obj_no_target is not None
     lines_no_target = generator._generate_prog_config("PROG1", obj_no_target)
     assert any("0," in line for line in lines_no_target)
+
+
+def test_append_standard_iobind_resolves_anchored_refs():
+    """YAML anchors give dict entries; they must resolve to ids."""
+    from dawnpy.descriptor.handlers._prog_common import append_standard_iobind
+
+    obj = ProgramObject(
+        obj_id="s1",
+        prog_type="sampling",
+        instance=0,
+        inputs=[],
+        outputs=[],
+        reset=None,
+        config={"sources": [{"id": "src1"}], "outputs": [{"id": "out1"}]},
+    )
+    items: list = []
+    append_standard_iobind(
+        items, obj, 6, {"src1": 0x11, "out1": 0x12}, "CProgSampling"
+    )
+    assert len(items) == 1
+    assert items[0][1] == [0x11, 0x12]
