@@ -15,7 +15,6 @@ from dawnpy.descriptor.handlers.prog_saturate import (
     config_fields,
     emit_config_field_cpp,
     encode_binary,
-    output_shape_owned_virt_targets,
     validate_object_refs,
 )
 
@@ -35,7 +34,12 @@ def _obj(config: dict | None = None, dtype: str = "int16") -> ProgramObject:
         config=(
             config
             if config is not None
-            else {"input": "in", "output": "out", "min": 0, "max": 4095}
+            else {
+                "sources": ["in"],
+                "outputs": ["out"],
+                "min": 0,
+                "max": 4095,
+            }
         ),
         dtype=dtype,
     )
@@ -59,12 +63,7 @@ def _bound(name: str) -> ConfigField:
 
 def test_config_fields():
     names = [f.name for f in config_fields()]
-    assert names == ["input", "output", "min", "max"]
-
-
-def test_output_shape_owned():
-    assert output_shape_owned_virt_targets(_obj()) == {"out"}
-    assert output_shape_owned_virt_targets(_obj({})) == set()
+    assert names == ["iobind", "min", "max"]
 
 
 def test_emit_bound_present():
@@ -114,7 +113,9 @@ def test_emit_bound_absent_emits_nothing():
 
 
 def test_emit_declines_other_value_type():
-    field = ConfigField(name="input", cpp_helper="H", value_type="id_single")
+    field = ConfigField(
+        name="iobind", cpp_helper="H", value_type="id_array_pairs"
+    )
     lines: list[str] = []
     assert not emit_config_field_cpp(lines, field, _obj(), {}, prog_cpp_ctx())
 
@@ -124,39 +125,45 @@ def test_validate_ok():
 
 
 def test_validate_real_ok():
-    obj = _obj({"input": "in", "output": "out", "min": -1.5}, dtype="float")
+    obj = _obj(
+        {"sources": ["in"], "outputs": ["out"], "min": -1.5}, dtype="float"
+    )
     assert validate_object_refs(obj, _io_map("float", "int8")) == []
 
 
 def test_validate_unsupported_io_dtypes():
     errors = validate_object_refs(_obj(), _io_map("int64", "char"))
     assert len(errors) == 2
-    assert "input 'in' uses unsupported dtype 'int64'" in errors[0]
+    assert "source 'in' uses unsupported dtype 'int64'" in errors[0]
     assert "output 'out' uses unsupported dtype 'char'" in errors[1]
 
 
-def test_validate_prog_dtype_must_match_input():
+def test_validate_prog_dtype_must_match_source():
     errors = validate_object_refs(_obj(), _io_map("int32", "int16"))
     assert errors == [
-        "Program sat1 invalid: saturate dtype 'int16' must match input 'in' "
+        "Program sat1 invalid: saturate dtype 'int16' must match source 'in' "
         "dtype 'int32'"
     ]
 
 
 def test_validate_b16_not_mixed():
-    obj = _obj({"input": "in", "output": "out", "min": 0}, dtype="b16")
+    obj = _obj({"sources": ["in"], "outputs": ["out"], "min": 0}, dtype="b16")
     errors = validate_object_refs(obj, _io_map("b16", "int32"))
     assert errors == [
         "Program sat1 invalid: saturate cannot mix b16 with 'int32'"
     ]
 
-    obj = _obj({"input": "in", "output": "out", "min": 0}, dtype="int32")
+    obj = _obj(
+        {"sources": ["in"], "outputs": ["out"], "min": 0}, dtype="int32"
+    )
     errors = validate_object_refs(obj, _io_map("int32", "b16"))
     assert errors == [
         "Program sat1 invalid: saturate cannot mix b16 with 'int32'"
     ]
 
-    obj = _obj({"input": "in", "output": "out", "min": -1.5}, dtype="b16")
+    obj = _obj(
+        {"sources": ["in"], "outputs": ["out"], "min": -1.5}, dtype="b16"
+    )
     assert validate_object_refs(obj, _io_map("b16", "b16")) == []
 
 
@@ -169,7 +176,9 @@ def test_validate_bound_outside_output_range():
 
 
 def test_validate_requires_a_bound():
-    errors = validate_object_refs(_obj({"input": "in", "output": "out"}), {})
+    errors = validate_object_refs(
+        _obj({"sources": ["in"], "outputs": ["out"]}), {}
+    )
     assert errors == [
         "Program sat1 invalid: saturate needs at least one of 'min'/'max'"
     ]
@@ -214,15 +223,14 @@ def test_encode_binary_words():
     items: list = []
     encode_binary(
         items,
-        _obj({"input": "in", "output": "out", "min": -1}),
+        _obj({"sources": ["in"], "outputs": ["out"], "min": -1}),
         41,
         {"in": 0x21, "out": 0x22},
         None,
     )
-    assert len(items) == 3
-    assert items[0][1] == [0x21]
-    assert items[1][1] == [0x22]
-    assert items[2][1] == [0xFFFFFFFF]
+    assert len(items) == 2
+    assert items[0][1] == [0x21, 0x22]
+    assert items[1][1] == [0xFFFFFFFF]
 
     items = []
     obj = dataclasses.replace(_obj(), config="junk")
