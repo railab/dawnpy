@@ -831,3 +831,27 @@ def test_serialize_proto_defensive_header_enum_failure(monkeypatch):
 
     monkeypatch.setattr(proto_serializer_mod, "header_enum_value_ids", _raise)
     serialize_proto_object([], proto, {}, decoder)
+
+
+@pytest.mark.parametrize("transport", ["modbus_rtu", "modbus_tcp"])
+def test_serialize_modbus_seekable_keeps_binary_id(transport):
+    decoder = ObjectIdDecoder()
+    words: list[int] = []
+    proto = ProtocolObject(
+        obj_id="mb",
+        proto_type=transport,
+        instance=0,
+        config={
+            "registers": [
+                {
+                    "type": "seekable",
+                    "config": 256,
+                    "start": 4096,
+                    "bindings": ["io0"],
+                }
+            ]
+        },
+        bindings=[],
+    )
+    serialize_proto_object(words, proto, {"io0": 0x10000001}, decoder)
+    assert _cfg_item_data(words) == [[7, 256, 4096, 1, 0x10000001]]

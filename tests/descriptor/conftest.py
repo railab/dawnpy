@@ -525,6 +525,7 @@ def minimal_enum_map(owner: str, enum_prefix: str) -> dict[str, str]:
         },
         ("CProtoModbusRegs", "MODBUS_TYPE_"): {
             "holding": "HOLDING",
+            "seekable": "SEEKABLE",
             "input": "INPUT",
             "coil": "COIL",
             "uint16": "UINT16",
@@ -586,10 +587,13 @@ def minimal_enum_map(owner: str, enum_prefix: str) -> dict[str, str]:
 
 
 def minimal_enum_value_ids(owner: str, enum_prefix: str) -> dict[str, int]:
-    return {
+    values = {
         value: idx
         for idx, value in enumerate(minimal_enum_map(owner, enum_prefix))
     }
+    if (owner, enum_prefix) == ("CProtoModbusRegs", "MODBUS_TYPE_"):
+        values["seekable"] = 7
+    return values
 
 
 def minimal_object_class_name(owner: str, method: str) -> str:

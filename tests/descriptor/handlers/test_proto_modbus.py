@@ -140,3 +140,52 @@ class TestProtoModbusHandler:
         )
         type_map = get_register_type_map(generator.config_loader, "modbus_rtu")
         assert type_map.get("holding") is None
+
+    @pytest.mark.parametrize(
+        "start,window_regs", [(-1, 1), (65534, 1), (1, -1)]
+    )
+    def test_modbus_file_range_validation(self, start, window_regs):
+        """Reject seekable allocations outside the Modbus file-number range."""
+        from dawnpy.descriptor.handlers.proto_modbus_rtu import (
+            validate_descriptor_context,
+        )
+
+        with pytest.raises(ValueError, match="file numbers"):
+            validate_descriptor_context(
+                "mb",
+                {
+                    "registers": [
+                        {
+                            "type": "seekable",
+                            "start": start,
+                            "config": window_regs,
+                            "bindings": ["blob"],
+                        }
+                    ]
+                },
+                {},
+            )
+
+    @pytest.mark.parametrize("transport", ["modbus_rtu", "modbus_tcp"])
+    def test_seekable_cpp_mapping_uses_existing_name(
+        self, generator, transport
+    ):
+        """Keep seekable C++ mappings and binding order for both transports."""
+        obj = to_proto_obj(
+            {
+                "type": transport,
+                "config": {
+                    "registers": [
+                        {
+                            "type": "seekable",
+                            "start": 1,
+                            "config": 4,
+                            "bindings": ["blob"],
+                        }
+                    ]
+                },
+            }
+        )
+        result = "\n".join(generator._generate_proto_config("MB", obj))
+        assert "CProtoModbusRegs::MODBUS_TYPE_SEEKABLE, 4, 1, 1," in result
+        assert obj.bindings == ["blob"]
