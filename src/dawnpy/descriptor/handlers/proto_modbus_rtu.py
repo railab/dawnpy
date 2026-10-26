@@ -91,6 +91,7 @@ def validate_descriptor_context(
         "discrete": [],
         "holding": [],
         "input": [],
+        "seekable": [],
     }
     for idx, reg in enumerate(registers):
         if not isinstance(reg, dict):
@@ -102,17 +103,24 @@ def validate_descriptor_context(
             continue  # pragma: no cover
 
         start = int(reg.get("start", 0))
+        register_config = int(reg.get("config", 0))
         bindings = resolve_references(reg.get("bindings", []))
         span = sum(
             _modbus_binding_registers(
                 reg_type,
                 binding,
                 objects,
-                int(reg.get("config", 0)),
+                register_config,
             )
             for binding in bindings
         )
         end = start + span
+        if reg_type == "seekable" and (
+            start < 0 or end > 65535 or register_config < 0
+        ):
+            raise ValueError(
+                "modbus seekable mapping exceeds file numbers 1..65535"
+            )
         if span <= 0:
             continue  # pragma: no cover
 
@@ -135,7 +143,9 @@ def _modbus_address_space(reg_type: str) -> str | None:
         return "coil"  # pragma: no cover
     if reg_type in ("discrete", "discrete_packed"):
         return "discrete"  # pragma: no cover
-    if reg_type in ("holding", "seekable"):
+    if reg_type == "seekable":
+        return "seekable"
+    if reg_type == "holding":
         return "holding"  # pragma: no cover
     if reg_type == "input":
         return "input"  # pragma: no cover
